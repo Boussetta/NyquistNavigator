@@ -8,7 +8,8 @@ def run_tool():
 
     This function prompts the user for a signal frequency and a sampling rate,
     then generates and displays a plot comparing an ideal continuous sine wave
-    with its sampled square-wave representation (zero-order hold).
+    with its sampled square-wave representation (zero-order hold) and an
+    FFT-based reconstruction.
     It also includes a warning if the sampling rate is below the Nyquist rate.
 
     The plot duration is dynamically calculated to always show 3 cycles of the
@@ -35,7 +36,8 @@ def run_tool():
     phase = np.pi / 4
 
     # Generate time points for the continuous signal (high resolution for smooth curve).
-    t_continuous = np.linspace(0, duration, 1000)
+    num_continuous_points = 1000 # Define the number of points for the continuous signal
+    t_continuous = np.linspace(0, duration, num_continuous_points)
     # Calculate the amplitude of the continuous sine wave.
     y_continuous = np.sin(2 * np.pi * f_signal * t_continuous + phase)
 
@@ -46,20 +48,48 @@ def run_tool():
     y_sampled = np.sin(2 * np.pi * f_signal * t_sampled + phase)
 
     # Create the plot figure and axes.
-    fig, ax = plt.subplots(figsize=(12, 6))
+    # --- FFT-based Reconstruction ---
+    # Perform FFT on the sampled signal
+    Y_sampled_fft = np.fft.fft(y_sampled)
+    N_sampled = len(y_sampled)
+
+    # Determine the number of points for the interpolated signal.
+    # We aim for a similar resolution as the continuous signal for comparison.
+    N_interp = num_continuous_points
+
+    # Create a zero-padded array for the spectrum
+    Y_padded = np.zeros(N_interp, dtype=complex)
+
+    # Copy the positive frequency components (including DC)
+    Y_padded[0 : (N_sampled + 1) // 2] = Y_sampled_fft[0 : (N_sampled + 1) // 2]
+    
+    # Copy the negative frequency components
+    Y_padded[N_interp - (N_sampled // 2) : N_interp] = Y_sampled_fft[N_sampled - (N_sampled // 2) : N_sampled]
+
+    # Perform Inverse FFT to get the reconstructed signal
+    # Scale by N_interp / N_sampled to maintain amplitude
+    y_reconstructed_fft = np.fft.ifft(Y_padded) * (N_interp / N_sampled)
+
+    # Create a new time axis for the FFT-reconstructed signal
+    t_reconstructed_fft = np.linspace(0, duration, N_interp, endpoint=False)
+
+    fig, ax = plt.subplots(figsize=(14, 7)) # Increased figure size for better visibility
 
     # 1. Plot the ideal continuous sine wave
-    ax.plot(t_continuous, y_continuous, label='Ideal Continuous Wave', color='blue', alpha=0.3, linestyle='--')
+    ax.plot(t_continuous, y_continuous, label='Ideal Continuous Wave (Brute Oversampling)', color='blue', alpha=0.7, linestyle='--')
 
     # 2. Plot the sampled signal using a 'step' function to represent zero-order hold.
     # 'where='post'' ensures the step changes *after* the sample point, creating a square wave.
-    ax.step(t_sampled, y_sampled, where='post', label='Zero-Order Hold (Square)', color='crimson', linewidth=2)
+    ax.step(t_sampled, y_sampled, where='post', label='Zero-Order Hold', color='crimson', linewidth=2, alpha=0.8)
 
-    # 3. Overlay individual sample points to clearly show where the signal was sampled.
+    # 3. Plot the FFT-based reconstructed signal
+    ax.plot(t_reconstructed_fft, y_reconstructed_fft.real, label='FFT-based Reconstruction', color='green', linewidth=1.5, alpha=0.9)
+
+    # 4. Overlay individual sample points to clearly show where the signal was sampled.
     ax.scatter(t_sampled, y_sampled, color='darkred', zorder=3, s=30, label='Sample Points')
 
     # Set the title and labels for the plot.
-    ax.set_title(f'{f_signal} Hz Signal sampled at {f_sampling} Hz')
+    ax.set_title(f'{f_signal} Hz Signal sampled at {f_sampling} Hz (with FFT Reconstruction)')
     ax.set_xlabel('Time (seconds)')
     ax.set_ylabel('Amplitude')
     # Add a grid for better readability.
