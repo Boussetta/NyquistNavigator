@@ -1,9 +1,27 @@
+"""
+AliasingAtlas: A pedagogical tool for visualizing signal sampling and aliasing.
+
+This module provides an interactive graphical interface to explore the 
+Nyquist-Shannon sampling theorem using base signals and harmonics.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from typing import Union, Optional, List
 
 class AliasingToolbox:
-    def __init__(self):
+    """An interactive toolbox for visualizing signal sampling and reconstruction.
+
+    Attributes:
+        f_sig_max (float): Maximum allowed frequency for the base signal.
+        f_samp_max (float): Maximum allowed sampling frequency.
+        num_continuous_points (int): Number of points for the ideal continuous signal.
+        phase (float): Phase offset for the base signal.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the toolbox, sets up the plot layout and interactive sliders."""
         # 1. Initialize core state
         self.f_sig_max = 50.0
         self.f_samp_max = 1500.0
@@ -60,17 +78,56 @@ class AliasingToolbox:
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
 
-    def calculate_signal(self, t, f_sig, f_harm, a_harm):
+    def calculate_signal(self, t: Union[np.ndarray, List[float]], f_sig: float, f_harm: float, a_harm: float) -> np.ndarray:
+        """Calculates a multi-tone signal consisting of a base frequency and a harmonic.
+
+        Args:
+            t (Union[np.ndarray, List[float]]): Array of time points.
+            f_sig (float): Frequency of the base signal in Hz.
+            f_harm (float): Frequency of the harmonic component in Hz.
+            a_harm (float): Amplitude of the harmonic component (relative to base).
+
+        Returns:
+            np.ndarray: The combined signal values.
+
+        Raises:
+            TypeError: If input types are not numeric or array-like.
+            ValueError: If frequencies are not positive or amplitude is negative.
+        """
+        # Input Validation
+        if not isinstance(t, (np.ndarray, list)):
+            raise TypeError("Time array 't' must be a numpy array or list.")
+        
+        params = {'f_sig': f_sig, 'f_harm': f_harm, 'a_harm': a_harm}
+        for name, value in params.items():
+            if not isinstance(value, (int, float, np.number)):
+                raise TypeError(f"Parameter '{name}' must be numeric.")
+        
+        if f_sig <= 0 or f_harm <= 0:
+            raise ValueError("Frequencies must be positive values.")
+        if a_harm < 0:
+            raise ValueError("Harmonic amplitude cannot be negative.")
+
         # Multi-tone mixing: Base + Harmonic
         base = np.sin(2 * np.pi * f_sig * t + self.phase)
         harm = a_harm * np.sin(2 * np.pi * f_harm * t)
         return base + harm
 
-    def update(self, val):
+    def update(self, val: Optional[float]) -> None:
+        """Updates all plot layers and status indicators based on current slider values.
+
+        Args:
+            val (Optional[float]): Value from the slider that triggered the update.
+                This is passed by Matplotlib's callback mechanism.
+        """
         f_sig = self.s_f_sig.val
         f_harm = self.s_f_harm.val
         a_harm = self.s_f_harm_amp.val
         f_samp = self.s_f_samp.val
+
+        # Validation for runtime safety
+        if f_sig <= 0 or f_samp <= 0:
+            return
 
         # 1. Setup Time
         duration = 3 / f_sig
@@ -122,7 +179,8 @@ class AliasingToolbox:
         self.status_text.set_text(msg)
         self.fig.canvas.draw_idle()
 
-    def show(self):
+    def show(self) -> None:
+        """Displays the interactive plot window."""
         plt.show()
 
 if __name__ == "__main__":
