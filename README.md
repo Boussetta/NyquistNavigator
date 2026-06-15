@@ -1,0 +1,73 @@
+# Sine Wave Sampling Visualizer
+
+This is a small, portable Python tool designed to visualize the effects of sampling on a continuous sine wave. It allows users to input a signal frequency and a sampling rate, then plots the original sine wave against its sampled, square-wave (zero-order hold) representation. The tool also provides a warning if the sampling rate falls below the Nyquist rate, indicating potential aliasing.
+
+## Features
+
+-   **Interactive Input:** Easily specify signal frequency and sampling rate.
+-   **Dynamic Plotting:** The plot automatically adjusts its time duration to always show 3 full cycles of the signal, ensuring clear visualization regardless of the frequency.
+-   **Zero-Order Hold Visualization:** Clearly demonstrates how discrete samples are held to reconstruct a continuous signal, forming a square-wave approximation.
+-   **Nyquist Warning:** Alerts the user when the sampling rate is insufficient to accurately represent the signal, highlighting the concept of aliasing.
+-   **Portability:** Built with standard Python libraries (`numpy`, `matplotlib`), making it easy to run on Windows, Linux, or macOS.
+
+## Prerequisites
+
+Before running the tool, ensure you have Python installed (version 3.6 or higher is recommended).
+
+You will also need the following Python libraries:
+
+-   `numpy`
+-   `matplotlib`
+
+You can install these libraries using `pip`:
+
+```bash
+pip install numpy matplotlib
+```
+
+## How to Run
+
+1.  **Save the script:** Save the provided Python code as `sinewave-ampling.py` (or any other `.py` filename) in a directory of your choice.
+
+2.  **Open a terminal or command prompt:** Navigate to the directory where you saved the script.
+
+3.  **Execute the script:**
+
+    ```bash
+    python sinewave-ampling.py
+    ```
+
+4.  **Enter Frequencies:** The tool will prompt you to enter the signal frequency (in Hz) and the sampling rate (in Hz).
+
+    ```
+    --- Sine Wave Sampling Visualizer ---
+    Enter signal frequency (Hz): 35
+    Enter sampling rate (Hz): 700
+    ```
+
+5.  **View the Plot:** A `matplotlib` window will appear, displaying the comparison plot.
+
+6.  **Analyze Another Signal:** After closing the plot, the tool will ask if you want to analyze another signal. Enter `y` to continue or `n` to exit.
+
+## Understanding the Plot
+
+-   **Ideal Continuous Wave (Blue Dashed Line):** Represents the original, un-sampled sine wave.
+-   **Zero-Order Hold (Square) (Crimson Line):** Shows how the sampled values are held constant until the next sample point, creating a staircase-like approximation of the original signal.
+-   **Sample Points (Dark Red Dots):** Indicate the exact moments in time when the signal's amplitude was measured.
+-   **Nyquist Warning:** If the sampling rate is less than twice the signal frequency, a warning message will appear at the bottom of the plot, indicating that aliasing may occur.
+
+## Example Usage
+
+Try these inputs to see different effects:
+
+-   **Good Sampling:**
+    -   Signal Frequency: `10` Hz
+    -   Sampling Rate: `100` Hz (10x Nyquist)
+-   **Nyquist Rate:**
+    -   Signal Frequency: `10` Hz
+    -   Sampling Rate: `20` Hz (Exactly Nyquist)
+-   **Aliasing (Below Nyquist):**
+    -   Signal Frequency: `10` Hz
+    -   Sampling Rate: `15` Hz
+
+This documentation should make your tool much easier for others (and your future self!) to understand and use.
