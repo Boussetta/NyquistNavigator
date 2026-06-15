@@ -13,7 +13,10 @@ def calculate_data(f_signal, f_sampling):
     y_cont = np.sin(2 * np.pi * f_signal * t_cont + phase)
     
     # 3. Sampled Signal
-    t_samp = np.arange(0, duration, 1 / f_sampling)
+    # Calculate number of samples based on duration and rate
+    num_samples = int(np.floor(duration * f_sampling))
+    # Generate time points precisely to avoid floating point drift
+    t_samp = np.linspace(0, (num_samples - 1) / f_sampling, num_samples)
     y_samp = np.sin(2 * np.pi * f_signal * t_samp + phase)
     
     # 4. FFT Reconstruction (Sinc Interpolation)
@@ -53,7 +56,7 @@ def run_interactive_tool():
     line_fft, = ax_time.plot(t_cont, y_recon, 'g-', linewidth=2, label='FFT Reconstruction')
     dots_samp = ax_time.scatter(t_samp, y_samp, color='darkred', s=20, zorder=3)
     
-    ax_time.set_title("Time Domain: Sampling & Reconstruction", fontweight='bold')
+    ax_time.set_title("AliasingAtlas: Time Domain Sampling & Reconstruction", fontweight='bold')
     ax_time.set_xlabel("Time (s)")
     ax_time.set_ylabel("Amplitude")
     ax_time.legend(loc='upper right', fontsize='small')
@@ -90,7 +93,8 @@ def run_interactive_tool():
         # Update Time Plot
         line_cont.set_data(tc, yc)
         # For step and scatter, we need to update the entire data structures
-        line_step.set_data(ts, ys)
+        line_step.set_xdata(ts)
+        line_step.set_ydata(ys)
         line_fft.set_data(tc, yr)
         dots_samp.set_offsets(np.c_[ts, ys])
         

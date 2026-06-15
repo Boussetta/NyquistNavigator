@@ -1,6 +1,6 @@
-# Sine Wave Sampling Visualizer
+# AliasingAtlas
 
-This is a small, portable Python tool designed to visualize the effects of sampling on a continuous sine wave. It allows users to input a signal frequency and a sampling rate, then plots the original sine wave against its sampled, square-wave (zero-order hold) representation. The tool also provides a warning if the sampling rate falls below the Nyquist rate, indicating potential aliasing.
+AliasingAtlas is an interactive educational tool designed to visualize the fundamental principles of the Nyquist-Shannon sampling theorem. By simulating the sampling and reconstruction of continuous sine waves, it provides an intuitive platform for exploring signal fidelity, zero-order hold distortion, and FFT-based (sinc) interpolation.
 
 ## Features
 
@@ -30,7 +30,7 @@ pip install numpy matplotlib
 
 1.  **Save the script:** Save the provided Python code as `sinewave-ampling.py` (or any other `.py` filename) in a directory of your choice.
 
-2.  **Open a terminal or command prompt:** Navigate to the directory where you saved the script.
+2.  **Open a terminal:** Navigate to the directory where you saved the script.
 
 3.  **Execute the script:**
 
@@ -40,7 +40,7 @@ pip install numpy matplotlib
 
 4.  **Enter Frequencies:** The tool will prompt you to enter the signal frequency (in Hz) and the sampling rate (in Hz).
 
-    ```
+    ```text
     --- Sine Wave Sampling Visualizer ---
     Enter signal frequency (Hz): 35
     Enter sampling rate (Hz): 700
