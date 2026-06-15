@@ -7,7 +7,7 @@ Nyquist-Shannon sampling theorem using base signals and harmonics.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, RadioButtons
 from typing import Union, Optional, List
 
 class AliasingToolbox:
@@ -30,7 +30,7 @@ class AliasingToolbox:
 
         # 2. Setup Figure and Axes
         self.fig = plt.figure(figsize=(14, 10))
-        plt.subplots_adjust(bottom=0.3, hspace=0.4)
+        plt.subplots_adjust(bottom=0.35, hspace=0.4)
 
         # Time Domain Subplot
         self.ax_time = self.fig.add_subplot(2, 1, 1)
@@ -59,21 +59,27 @@ class AliasingToolbox:
 
         # 4. Create Sliders
         slider_color = 'lightsteelblue'
-        self.ax_f_sig = plt.axes([0.2, 0.18, 0.6, 0.02], facecolor=slider_color)
-        self.ax_f_harm = plt.axes([0.2, 0.14, 0.6, 0.02], facecolor=slider_color)
-        self.ax_a_harm = plt.axes([0.2, 0.10, 0.6, 0.02], facecolor=slider_color)
-        self.ax_f_samp = plt.axes([0.2, 0.06, 0.6, 0.02], facecolor=slider_color)
+        self.ax_f_sig = plt.axes([0.2, 0.26, 0.6, 0.02], facecolor=slider_color)
+        self.ax_f_harm = plt.axes([0.2, 0.22, 0.6, 0.02], facecolor=slider_color)
+        self.ax_a_harm = plt.axes([0.2, 0.18, 0.6, 0.02], facecolor=slider_color)
+        self.ax_f_samp = plt.axes([0.2, 0.14, 0.6, 0.02], facecolor=slider_color)
+        self.ax_bits = plt.axes([0.2, 0.10, 0.6, 0.02], facecolor=slider_color)
+        self.ax_window = plt.axes([0.85, 0.05, 0.1, 0.1], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
         self.s_f_harm_amp = Slider(self.ax_a_harm, 'Harmonic Amp', 0.0, 1.0, valinit=0.0)
         self.s_f_samp = Slider(self.ax_f_samp, 'Sampling (Hz)', 5.0, self.f_samp_max, valinit=50.0)
+        self.s_bits = Slider(self.ax_bits, 'Bit Depth', 2, 16, valinit=16, valstep=1)
+        self.w_radio = RadioButtons(self.ax_window, ('None', 'Hamming', 'Hann'))
 
         # 5. Connect Callbacks
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
         self.s_f_harm_amp.on_changed(self.update)
         self.s_f_samp.on_changed(self.update)
+        self.s_bits.on_changed(self.update)
+        self.w_radio.on_clicked(self.update)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
@@ -124,6 +130,8 @@ class AliasingToolbox:
         f_harm = self.s_f_harm.val
         a_harm = self.s_f_harm_amp.val
         f_samp = self.s_f_samp.val
+        bits = int(self.s_bits.val)
+        window_type = self.w_radio.value_selected
 
         # Validation for runtime safety
         if f_sig <= 0 or f_samp <= 0:
@@ -140,18 +148,32 @@ class AliasingToolbox:
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
         y_samp = self.calculate_signal(t_samp, f_sig, f_harm, a_harm)
 
-        # 3. FFT Reconstruction
+        # 3. Bit-Depth Quantization
+        levels = 2**bits
+        y_samp = np.round((y_samp + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
+
+        # 4. Windowing
         N_samp = len(y_samp)
-        Y_fft = np.fft.fft(y_samp)
+        if window_type == 'Hamming':
+            window = np.hamming(N_samp)
+        elif window_type == 'Hann':
+            window = np.hanning(N_samp)
+        else:
+            window = np.ones(N_samp)
+        
+        y_samp_fft_input = y_samp * window
+
+        # 5. FFT Reconstruction
+        Y_fft = np.fft.fft(y_samp_fft_input)
         Y_padded = np.zeros(self.num_continuous_points, dtype=complex)
         half = (N_samp + 1) // 2
         Y_padded[:half] = Y_fft[:half]
         Y_padded[self.num_continuous_points - (N_samp // 2):] = Y_fft[N_samp - (N_samp // 2):]
         y_recon = np.fft.ifft(Y_padded).real * (self.num_continuous_points / N_samp)
 
-        # 4. Spectrum Visualization
+        # 6. Spectrum Visualization
         freqs = np.fft.rfftfreq(N_samp, 1/f_samp)
-        mags = np.abs(np.fft.rfft(y_samp)) / N_samp
+        mags = np.abs(np.fft.rfft(y_samp_fft_input)) / N_samp
 
         # Update Elements
         self.line_cont.set_data(t_cont, y_cont)
