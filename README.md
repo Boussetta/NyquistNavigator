@@ -2,6 +2,10 @@
 
 AliasingAtlas is an interactive educational tool designed to visualize the fundamental principles of the Nyquist-Shannon sampling theorem. By simulating the sampling and reconstruction of continuous sine waves, it provides an intuitive platform for exploring signal fidelity, zero-order hold distortion, and FFT-based (sinc) interpolation.
 
+## Live Interactive Notebook
+
+You can also run this project as a Jupyter Notebook: [`AliasingAtlas.ipynb`](AliasingAtlas.ipynb). This is ideal for interactive exploration in environments like MyBinder.
+
 ## Features
 
 -   **Interactive Input:** Easily specify signal frequency and sampling rate.
