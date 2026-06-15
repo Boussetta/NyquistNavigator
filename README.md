@@ -8,6 +8,7 @@ This is a small, portable Python tool designed to visualize the effects of sampl
 -   **Dynamic Plotting:** The plot automatically adjusts its time duration to always show 3 full cycles of the signal, ensuring clear visualization regardless of the frequency.
 -   **Zero-Order Hold Visualization:** Clearly demonstrates how discrete samples are held to reconstruct a continuous signal, forming a square-wave approximation.
 -   **Nyquist Warning:** Alerts the user when the sampling rate is insufficient to accurately represent the signal, highlighting the concept of aliasing.
+-   **FFT-based Reconstruction:** Demonstrates how a bandlimited interpolation using FFT can reconstruct a smoother signal from discrete samples, offering a comparison to zero-order hold.
 -   **Portability:** Built with standard Python libraries (`numpy`, `matplotlib`), making it easy to run on Windows, Linux, or macOS.
 
 ## Prerequisites
@@ -55,6 +56,7 @@ pip install numpy matplotlib
 -   **Zero-Order Hold (Square) (Crimson Line):** Shows how the sampled values are held constant until the next sample point, creating a staircase-like approximation of the original signal.
 -   **Sample Points (Dark Red Dots):** Indicate the exact moments in time when the signal's amplitude was measured.
 -   **Nyquist Warning:** If the sampling rate is less than twice the signal frequency, a warning message will appear at the bottom of the plot, indicating that aliasing may occur.
+-   **FFT-based Reconstruction (Green Line):** Shows a smoother reconstruction of the signal achieved by performing an Inverse Fast Fourier Transform (IFFT) on the zero-padded spectrum of the sampled signal. This method aims to recover the original continuous signal more accurately than zero-order hold, especially when the Nyquist criterion is met.
 
 ## Example Usage
 
