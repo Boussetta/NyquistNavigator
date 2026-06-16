@@ -33,7 +33,7 @@ class SineWave(Signal):
 class SquareWave(Signal):
     def calculate(self) -> np.ndarray:
         base = np.sign(np.sin(2 * np.pi * self.f_sig * self.t + self.phase))
-        harm = self.a_harm * np.sign(np.pi * self.f_harm * self.t) # Corrected to use np.sign(np.sin(...))
+        harm = self.a_harm * np.sign(np.sin(2 * np.pi * self.f_harm * self.t))
         return base + harm
 
 class SawtoothWave(Signal):
@@ -116,7 +116,8 @@ class AliasingToolbox:
         self.dots_samp = self.ax_time.scatter([], [], color='darkred', s=20, zorder=3)
         self.line_spec, = self.ax_freq.plot([], [], 'ro-', markersize=4, label='Sampled Peak')
         self.nyquist_line = self.ax_freq.axvline(0, color='orange', linestyle='--', label='Nyquist Limit')
-        self.true_freq_line = self.ax_freq.axvline(0, color='blue', alpha=0.3, label='True Signal Freq')
+        self.true_freq_line = self.ax_freq.axvline(0, color='blue', alpha=0.4, linestyle='--', label='Intended Freq (Ghost)')
+        self.alias_indicator = self.ax_freq.axvline(0, color='magenta', alpha=0.6, linestyle=':', label='Predicted Alias')
 
         self.ax_time.legend(loc='upper right', fontsize='small')
         self.ax_freq.legend(loc='upper right', fontsize='small')
@@ -229,18 +230,25 @@ class AliasingToolbox:
         else:
             max_freq = max(f_sig, f_harm if a_harm > 0 else 0)
             
+        # Refined aliasing check: Nyquist requires f_samp > 2 * max_freq
+        is_aliased = f_samp < 2 * max_freq
+
+        # Update ghost indicators for folding effect visualization
         self.true_freq_line.set_xdata([max_freq, max_freq])
+        
+        # The "folded" frequency math: f_alias = | f_true - f_samp * round(f_true / f_samp) |
+        f_folded = np.abs(max_freq - f_samp * np.round(max_freq / f_samp))
+        self.alias_indicator.set_xdata([f_folded, f_folded])
+        self.alias_indicator.set_visible(is_aliased)
+
+        # Dynamic X-axis to visualize the frequency folding from "outside" the Nyquist limit
+        self.ax_freq.set_xlim(0, max(f_samp/2 + 20, max_freq + 20))
 
         noise = y_cont - y_recon
         rmse = np.sqrt(np.mean(noise**2))
         signal_power = np.mean(y_cont**2)
         noise_power = np.mean(noise**2)
         snr = 10 * np.log10(signal_power / noise_power) if noise_power > 0 else 100
-
-        # Refined aliasing check: Nyquist requires f_samp > 2 * max_freq
-        is_aliased = f_samp < 2 * max_freq
-        
-        # Special pedagogical note: Square/Sawtooth waves technically alias at any sampling rate 
         # because of their infinite harmonics, but we focus on the modeled components here.
         
         msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
