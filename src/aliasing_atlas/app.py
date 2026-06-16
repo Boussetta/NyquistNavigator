@@ -14,6 +14,12 @@ try:
 except ImportError:
     Audio, display = None, None # Fallback for non-IPython environments
 
+# Optional import for local desktop audio playback
+try:
+    import sounddevice as sd
+except ImportError:
+    sd = None
+
 
 # --- Signal Generation Classes ---
 class Signal(ABC):
@@ -184,13 +190,6 @@ class AliasingToolbox:
 
     def _play_audio_callback(self, event) -> None:
         """Callback for the Play Audio button."""
-        if Audio is None or display is None: # Check if IPython.display is available
-            self.status_text.set_text("Audio playback requires IPython (Notebook environment).")
-            self.status_text.get_bbox_patch().set_facecolor('orange')
-            self.fig.canvas.draw_idle()
-            return
-
-        # Standard audio sampling rate for browser compatibility
         PLAYBACK_FS = 44100
         DURATION = 1.5
 
@@ -239,18 +238,35 @@ class AliasingToolbox:
         max_v = np.max(np.abs(y_audio_quant))
         audio_data = y_audio_quant / max_v if max_v > 0 else y_audio_quant
 
-        # Debugging prints to confirm data before playback
-        print(f"--- Audio Playback Debug ---")
-        print(f"Signal Length: {DURATION}s")
-        print(f"Hardware Playback Rate: {PLAYBACK_FS} Hz")
-        print(f"Emulated Sampling Rate: {f_samp:.1f} Hz")
-        print(f"Max absolute value in audio data: {max_v}")
-        print(f"----------------------------")
+        # 1. Desktop Playback (Highest priority for local use)
+        if sd is not None:
+            try:
+                # sounddevice works locally (desktop/notebook) without HTML serialization issues
+                sd.play(audio_data, PLAYBACK_FS)
+                self.status_text.set_text(f"Playing {wave_type} via sounddevice...")
+                self.fig.canvas.draw_idle()
+                return
+            except Exception as e:
+                print(f"Sounddevice failed: {e}")
 
-        # Send to browser at a standard 44.1kHz rate
-        display(Audio(data=audio_data, rate=PLAYBACK_FS, autoplay=True))
+        # 2. Notebook Playback (Fallback for Colab/Jupyter widgets)
+        if Audio is not None and display is not None:
+            # Ensure float32 for maximum compatibility across browser audio engines
+            audio_data_32 = audio_data.astype(np.float32)
+            
+            # Debugging prints
+            print(f"--- Audio Playback Debug ---")
+            print(f"Signal Length: {DURATION}s | Playback Rate: {PLAYBACK_FS} Hz")
+            print(f"Emulated Sampling Rate: {f_samp:.1f} Hz")
+            print(f"----------------------------")
+            
+            # In local Jupyter, the player might appear in the log or a separate area
+            display(Audio(data=audio_data_32, rate=PLAYBACK_FS, autoplay=True))
+            self.status_text.set_text(f"Audio player for {wave_type} generated below.")
+        else:
+            self.status_text.set_text("Audio failed. Install 'sounddevice' (pip install sounddevice).")
+            self.status_text.get_bbox_patch().set_facecolor('orange')
         
-        self.status_text.set_text(f"Audio player for {wave_type} generated below. Playing...")
         self.fig.canvas.draw_idle()
 
     def update(self, val: Optional[float]) -> None:
