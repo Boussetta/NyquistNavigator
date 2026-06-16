@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aliasing-atlas"
+version = "1.0.0"
+description = "An interactive pedagogical tool for visualizing signal sampling and aliasing."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Wissem", email = "wissem@example.com"}
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "matplotlib>=3.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/wissem/aliasing-atlas"
+
+[project.scripts]
+aliasing-atlas = "aliasing_atlas.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
