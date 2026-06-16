@@ -5,10 +5,91 @@ AliasingAtlas: A pedagogical tool for visualizing signal sampling and aliasing.
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, RadioButtons
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict, Type
+from abc import ABC, abstractmethod
+
+
+# --- Signal Generation Classes ---
+class Signal(ABC):
+    """Abstract base class for all signal types."""
+    def __init__(self, t: Union[np.ndarray, List[float]], f_sig: float, f_harm: float, a_harm: float, phase: float):
+        self.t = t
+        self.f_sig = f_sig
+        self.f_harm = f_harm
+        self.a_harm = a_harm
+        self.phase = phase
+
+    @abstractmethod
+    def calculate(self) -> np.ndarray:
+        """Calculates the signal waveform."""
+        pass
+
+class SineWave(Signal):
+    def calculate(self) -> np.ndarray:
+        base = np.sin(2 * np.pi * self.f_sig * self.t + self.phase)
+        harm = self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t)
+        return base + harm
+
+class SquareWave(Signal):
+    def calculate(self) -> np.ndarray:
+        base = np.sign(np.sin(2 * np.pi * self.f_sig * self.t + self.phase))
+        harm = self.a_harm * np.sign(np.pi * self.f_harm * self.t) # Corrected to use np.sign(np.sin(...))
+        return base + harm
+
+class SawtoothWave(Signal):
+    def calculate(self) -> np.ndarray:
+        # custom sawtooth: 2 * (t * f + p - floor(0.5 + t * f + p))
+        base = 2 * (self.f_sig * self.t + self.phase/(2*np.pi) - np.floor(0.5 + self.f_sig * self.t + self.phase/(2*np.pi)))
+        harm = self.a_harm * 2 * (self.f_harm * self.t - np.floor(0.5 + self.f_harm * self.t))
+        return base + harm
+
+class AMWave(Signal):
+    def calculate(self) -> np.ndarray:
+        # f_sig: Carrier, f_harm: Message, a_harm: Modulation Index
+        # Note: a_harm here acts as the modulation index.
+        base = (1 + self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t)) * np.sin(2 * np.pi * self.f_sig * self.t + self.phase)
+        return base
+
+class FMWave(Signal):
+    def calculate(self) -> np.ndarray:
+        # f_sig: Carrier, f_harm: Message, a_harm: Modulation Index (beta)
+        # Note: a_harm here acts as the modulation index (beta).
+        base = np.sin(2 * np.pi * self.f_sig * self.t + self.phase + self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t))
+        return base
+
+class SignalRegistry:
+    """A registry for creating different types of signals."""
+    _signals: Dict[str, Type[Signal]] = {}
+
+    @classmethod
+    def register_signal(cls, name: str, signal_class: Type[Signal]):
+        if not issubclass(signal_class, Signal):
+            raise ValueError("Registered class must inherit from Signal")
+        cls._signals[name] = signal_class
+
+    @classmethod
+    def create_signal(cls, wave_type: str, t: Union[np.ndarray, List[float]], f_sig: float, f_harm: float, a_harm: float, phase: float) -> np.ndarray:
+        signal_class = cls._signals.get(wave_type)
+        if signal_class:
+            return signal_class(t, f_sig, f_harm, a_harm, phase).calculate()
+        else:
+            # For unknown types, return a zero signal or raise an error
+            return np.zeros_like(t)
+
+# Register the signal types
+SignalRegistry.register_signal('Sine', SineWave)
+SignalRegistry.register_signal('Square', SquareWave)
+SignalRegistry.register_signal('Sawtooth', SawtoothWave)
+SignalRegistry.register_signal('AM', AMWave)
+SignalRegistry.register_signal('FM', FMWave)
+
+# --- End Signal Generation Classes ---
+
 
 class AliasingToolbox:
-    """An interactive toolbox for visualizing signal sampling and reconstruction."""
+    """
+    An interactive toolbox for visualizing signal sampling and reconstruction.
+    """
 
     def __init__(self) -> None:
         self.f_sig_max = 50.0
@@ -59,7 +140,7 @@ class AliasingToolbox:
 
         self.w_radio = RadioButtons(self.ax_window, ('None', 'Hamming', 'Hann'))
         self.ax_window.set_title("Window", fontsize=10)
-        self.w_wave = RadioButtons(self.ax_wave, ('Sine', 'Square', 'Sawtooth'))
+        self.w_wave = RadioButtons(self.ax_wave, tuple(SignalRegistry._signals.keys()))
         self.ax_wave.set_title("Waveform", fontsize=10)
 
         self.s_f_sig.on_changed(self.update)
@@ -73,18 +154,6 @@ class AliasingToolbox:
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
-
-    def calculate_signal(self, t: Union[np.ndarray, List[float]], f_sig: float, f_harm: float, a_harm: float, phase: float, wave_type: str) -> np.ndarray:
-        if wave_type == 'Sine':
-            base = np.sin(2 * np.pi * f_sig * t + phase)
-            harm = a_harm * np.sin(2 * np.pi * f_harm * t)
-        elif wave_type == 'Square':
-            base = np.sign(np.sin(2 * np.pi * f_sig * t + phase))
-            harm = a_harm * np.sign(np.sin(2 * np.pi * f_harm * t))
-        elif wave_type == 'Sawtooth':
-            base = 2 * (f_sig * t + phase/(2*np.pi) - np.floor(0.5 + f_sig * t + phase/(2*np.pi)))
-            harm = a_harm * 2 * (f_harm * t - np.floor(0.5 + f_harm * t))
-        return base + harm
 
     def update(self, val: Optional[float]) -> None:
         f_sig = self.s_f_sig.val
@@ -100,12 +169,14 @@ class AliasingToolbox:
 
         duration = 3 / f_sig
         t_cont = np.linspace(0, duration, self.num_continuous_points)
-        y_cont = self.calculate_signal(t_cont, f_sig, f_harm, a_harm, phase, wave_type)
+        # Use the SignalRegistry to create and calculate the continuous signal
+        y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase)
 
         num_samples = int(np.floor(duration * f_samp))
         if num_samples < 2: num_samples = 2
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
-        y_samp = self.calculate_signal(t_samp, f_sig, f_harm, a_harm, phase, wave_type)
+        # Use the SignalRegistry to create and calculate the sampled signal
+        y_samp = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
 
         levels = 2**bits
         y_samp = np.round((y_samp + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
@@ -136,7 +207,15 @@ class AliasingToolbox:
 
         self.line_spec.set_data(freqs, mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
-        self.true_freq_line.set_xdata([f_sig, f_sig])
+        
+        # Determine the true signal frequency for the indicator line
+        if wave_type in ['Sine', 'Square', 'Sawtooth']:
+            true_freq_for_indicator = max(f_sig, f_harm if a_harm > 0 else 0)
+        elif wave_type in ['AM', 'FM']:
+            true_freq_for_indicator = f_sig # Carrier frequency is often the primary reference
+        else:
+            true_freq_for_indicator = f_sig # Default to f_sig for unknown types
+        self.true_freq_line.set_xdata([true_freq_for_indicator, true_freq_for_indicator])
 
         noise = y_cont - y_recon
         rmse = np.sqrt(np.mean(noise**2))
@@ -144,7 +223,9 @@ class AliasingToolbox:
         noise_power = np.mean(noise**2)
         snr = 10 * np.log10(signal_power / noise_power) if noise_power > 0 else 100
 
-        is_aliased = f_samp < 2 * max(f_sig, f_harm if a_harm > 0 else 0)
+        # For now, keep the aliasing check simple, based on the highest frequency component
+        # A more sophisticated check would involve the signal's actual bandwidth.
+        is_aliased = f_samp < 2 * max(f_sig, f_harm if a_harm > 0 else 0) 
         msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB"
         if is_aliased:
             msg += " | WARNING: ALIASING DETECTED"
