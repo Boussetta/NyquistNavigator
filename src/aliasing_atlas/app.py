@@ -157,6 +157,7 @@ class AliasingToolbox:
         self.ax_aaf = plt.axes([0.40, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_play_audio = plt.axes([0.60, 0.02, 0.08, 0.06], facecolor=slider_color)
+        self.ax_audio_src = plt.axes([0.72, 0.02, 0.12, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -172,6 +173,8 @@ class AliasingToolbox:
         self.w_aaf = CheckButtons(self.ax_aaf, ('AAF On',), [False])
         self.w_db = CheckButtons(self.ax_db_scale, ('dB Scale',), [False])
         self.btn_play_audio = Button(self.ax_play_audio, 'Play Audio')
+        self.w_audio_src = RadioButtons(self.ax_audio_src, ('Sampled', 'Recon'))
+        self.ax_audio_src.set_title("Audio Source", fontsize=10)
 
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
@@ -183,6 +186,7 @@ class AliasingToolbox:
         self.w_wave.on_clicked(self.update)
         self.w_aaf.on_clicked(self.update)
         self.w_db.on_clicked(self.update)
+        self.w_audio_src.on_clicked(self.update)
         self.btn_play_audio.on_clicked(self._play_audio_callback)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
@@ -202,6 +206,7 @@ class AliasingToolbox:
         bits = int(self.s_bits.val)
         wave_type = self.w_wave.value_selected
         aaf_on = self.w_aaf.get_status()[0]
+        audio_src = self.w_audio_src.value_selected
 
         if f_samp <= 0:
             self.status_text.set_text("Cannot play audio: Sampling frequency must be greater than 0.")
@@ -209,41 +214,53 @@ class AliasingToolbox:
             self.fig.canvas.draw_idle()
             return
 
-        # Create a high-resolution time base for playback
-        t_playback = np.linspace(0, DURATION, int(DURATION * PLAYBACK_FS))
-
-        # Emulate the 'sampling' effect (Zero-Order Hold)
-        # We calculate the signal values at discrete steps of f_samp
-        t_sampled_steps = np.floor(t_playback * f_samp) / f_samp
+        # 1. Generate discrete samples at f_samp
+        num_s = int(DURATION * f_samp)
+        if num_s < 2: num_s = 2
+        t_s = np.linspace(0, (num_s - 1) / f_samp, num_s)
+        num_p = int(DURATION * PLAYBACK_FS)
+        t_playback = np.linspace(0, DURATION, num_p)
         
         if aaf_on:
-            # For audio AAF, we filter the high-res signal at f_samp/2
+            # High-res AAF filtering before sampling
             y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase)
             yf = np.fft.fft(y_full)
-            xf = np.fft.fftfreq(len(t_playback), 1/PLAYBACK_FS)
+            xf = np.fft.fftfreq(num_p, 1/PLAYBACK_FS)
             yf[np.abs(xf) > f_samp / 2] = 0
             y_audio_base = np.fft.ifft(yf).real
-            # Then we "sample" that filtered signal
-            indices = (t_sampled_steps * PLAYBACK_FS).astype(int)
-            indices = np.clip(indices, 0, len(y_audio_base) - 1)
-            y_audio_ideal = y_audio_base[indices]
+            y_s = np.interp(t_s, t_playback, y_audio_base)
         else:
-            y_audio_ideal = SignalRegistry.create_signal(wave_type, t_sampled_steps, f_sig, f_harm, a_harm, phase)
+            y_s = SignalRegistry.create_signal(wave_type, t_s, f_sig, f_harm, a_harm, phase)
         
         # Apply the current bit-depth quantization
         levels = 2**bits
         divisor = (levels - 1) if (levels - 1) > 0 else 1
-        y_audio_quant = np.round((y_audio_ideal + 1) / 2 * divisor) / divisor * 2 - 1
-        
-        max_v = np.max(np.abs(y_audio_quant))
-        audio_data = y_audio_quant / max_v if max_v > 0 else y_audio_quant
+        y_s_q = np.round((y_s + 1) / 2 * divisor) / divisor * 2 - 1
+
+        # 2. Process according to source
+        if audio_src == 'Sampled':
+            # Zero-Order Hold (emulates crimson line sound)
+            indices = np.floor(t_playback * f_samp).astype(int)
+            indices = np.clip(indices, 0, len(y_s_q) - 1)
+            audio_data = y_s_q[indices]
+        else: # 'Recon'
+            # FFT Reconstruction (emulates green line sound)
+            Y_s = np.fft.fft(y_s_q)
+            Y_p = np.zeros(num_p, dtype=complex)
+            half = (num_s + 1) // 2
+            Y_p[:half] = Y_s[:half]
+            Y_p[num_p - (num_s // 2):] = Y_s[num_s - (num_s // 2):]
+            audio_data = np.fft.ifft(Y_p).real * (num_p / num_s)
+
+        max_v = np.max(np.abs(audio_data))
+        audio_data = audio_data / max_v if max_v > 0 else audio_data
 
         # 1. Desktop Playback (Highest priority for local use)
         if sd is not None:
             try:
                 # sounddevice works locally (desktop/notebook) without HTML serialization issues
                 sd.play(audio_data, PLAYBACK_FS)
-                self.status_text.set_text(f"Playing {wave_type} via sounddevice...")
+                self.status_text.set_text(f"Playing {wave_type} ({audio_src}) via sounddevice...")
                 self.fig.canvas.draw_idle()
                 return
             except Exception as e:
@@ -262,7 +279,7 @@ class AliasingToolbox:
             
             # In local Jupyter, the player might appear in the log or a separate area
             display(Audio(data=audio_data_32, rate=PLAYBACK_FS, autoplay=True))
-            self.status_text.set_text(f"Audio player for {wave_type} generated below.")
+            self.status_text.set_text(f"Audio player for {wave_type} ({audio_src}) generated below.")
         else:
             self.status_text.set_text("Audio failed. Install 'sounddevice' (pip install sounddevice).")
             self.status_text.get_bbox_patch().set_facecolor('orange')
