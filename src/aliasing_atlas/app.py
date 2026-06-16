@@ -108,7 +108,7 @@ class AliasingToolbox:
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
-        self.ax_freq.set_ylim(0, 1.2)
+        self.ax_freq.set_ylim(0, 1.5)
 
         self.ax_quant = self.fig.add_subplot(3, 1, 3)
         self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight='bold')

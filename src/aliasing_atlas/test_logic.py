@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from aliasing_atlas.app import calculate_signal, AliasingToolbox
+from aliasing_atlas.app import SignalRegistry, AliasingToolbox
 
 def test_signal_calculation_sine():
     """Verify that the sine wave generation is mathematically correct."""
@@ -11,7 +11,7 @@ def test_signal_calculation_sine():
     a_harm = 0.0
     phase = 0.0
     
-    y = calculate_signal(t, f_sig, f_harm, a_harm, phase, 'Sine')
+    y = SignalRegistry.create_signal('Sine', t, f_sig, f_harm, a_harm, phase)
     
     # Expected: sin(0), sin(pi/2), sin(pi), sin(3pi/2) -> [0, 1, 0, -1]
     expected = np.array([0.0, 1.0, 0.0, -1.0])

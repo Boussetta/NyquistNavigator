@@ -52,13 +52,16 @@ pytest
 -   **Sample Points (Dark Red Dots):** Indicate the exact moments in time when the signal's amplitude was measured.
 -   **Aliasing Warning:** If the sampling rate is insufficient, the status bar turns orange to warn of potential aliasing.
 -   **FFT-based Reconstruction (Green Line):** Shows a smoother reconstruction of the signal achieved by performing an Inverse Fast Fourier Transform (IFFT) on the zero-padded spectrum of the sampled signal. This method aims to recover the original continuous signal more accurately than zero-order hold, especially when the Nyquist criterion is met.
+-   **Quantization Error Plot:** Visualizes the residual noise created by bit-depth reduction.
+-   **Ghost Indicators:** Spectral lines showing the "Intended" frequency vs. the "Folded" alias when the Nyquist limit is exceeded.
 
 ## Features
 
 -   **Interactive Input:** Easily specify signal frequency and sampling rate via sliders.
 -   **Dynamic Plotting:** The plot automatically adjusts its time duration to always show 3 full cycles of the signal.
 -   **Zero-Order Hold Visualization:** Clearly demonstrates discrete samples held as constant steps.
--   **Bit-Depth Quantization:** Explore the effects of reduced bit-depth on signal fidelity.
+-   **Bit-Depth Quantization:** Explore the effects of reduced bit-depth and view the error residuals.
+-   **Advanced Modulation:** Supports AM and FM modulation to demonstrate bandwidth expansion.
 -   **Windowing:** Compare Hamming and Hann windows for spectral analysis.
 
 ## Example Usage
