@@ -98,17 +98,22 @@ class AliasingToolbox:
         self.phase = np.pi / 4
 
         self.fig = plt.figure(figsize=(14, 10))
-        plt.subplots_adjust(bottom=0.35, hspace=0.45)
+        plt.subplots_adjust(bottom=0.28, hspace=0.7)
 
-        self.ax_time = self.fig.add_subplot(2, 1, 1)
+        self.ax_time = self.fig.add_subplot(3, 1, 1)
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight='bold')
         self.ax_time.grid(True, linestyle=':', alpha=0.6)
 
-        self.ax_freq = self.fig.add_subplot(2, 1, 2)
+        self.ax_freq = self.fig.add_subplot(3, 1, 2)
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
         self.ax_freq.set_ylim(0, 1.2)
+
+        self.ax_quant = self.fig.add_subplot(3, 1, 3)
+        self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight='bold')
+        self.ax_quant.grid(True, linestyle=':', alpha=0.6)
+        self.ax_quant.set_ylabel("Error")
 
         self.line_cont, = self.ax_time.plot([], [], 'b--', alpha=0.4, label='Ideal Continuous')
         self.line_step, = self.ax_time.step([], [], where='post', color='crimson', alpha=0.6, label='Zero-Order Hold')
@@ -118,19 +123,20 @@ class AliasingToolbox:
         self.nyquist_line = self.ax_freq.axvline(0, color='orange', linestyle='--', label='Nyquist Limit')
         self.true_freq_line = self.ax_freq.axvline(0, color='blue', alpha=0.4, linestyle='--', label='Intended Freq (Ghost)')
         self.alias_indicator = self.ax_freq.axvline(0, color='magenta', alpha=0.6, linestyle=':', label='Predicted Alias')
+        self.line_quant, = self.ax_quant.plot([], [], 'm.-', markersize=3, alpha=0.7, label='Error')
 
         self.ax_time.legend(loc='upper right', fontsize='small')
         self.ax_freq.legend(loc='upper right', fontsize='small')
 
         slider_color = 'lightsteelblue'
-        self.ax_f_sig = plt.axes([0.12, 0.26, 0.32, 0.02], facecolor=slider_color)
-        self.ax_f_harm = plt.axes([0.12, 0.21, 0.32, 0.02], facecolor=slider_color)
-        self.ax_a_harm = plt.axes([0.12, 0.16, 0.32, 0.02], facecolor=slider_color)
-        self.ax_phase = plt.axes([0.58, 0.26, 0.32, 0.02], facecolor=slider_color)
-        self.ax_f_samp = plt.axes([0.58, 0.21, 0.32, 0.02], facecolor=slider_color)
-        self.ax_bits = plt.axes([0.58, 0.16, 0.32, 0.02], facecolor=slider_color)
-        self.ax_window = plt.axes([0.12, 0.03, 0.15, 0.08], facecolor=slider_color)
-        self.ax_wave = plt.axes([0.35, 0.03, 0.15, 0.08], facecolor=slider_color)
+        self.ax_f_sig = plt.axes([0.12, 0.18, 0.32, 0.015], facecolor=slider_color)
+        self.ax_f_harm = plt.axes([0.12, 0.14, 0.32, 0.015], facecolor=slider_color)
+        self.ax_a_harm = plt.axes([0.12, 0.10, 0.32, 0.015], facecolor=slider_color)
+        self.ax_phase = plt.axes([0.58, 0.18, 0.32, 0.015], facecolor=slider_color)
+        self.ax_f_samp = plt.axes([0.58, 0.14, 0.32, 0.015], facecolor=slider_color)
+        self.ax_bits = plt.axes([0.58, 0.10, 0.32, 0.015], facecolor=slider_color)
+        self.ax_window = plt.axes([0.12, 0.02, 0.15, 0.06], facecolor=slider_color)
+        self.ax_wave = plt.axes([0.35, 0.02, 0.15, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -187,11 +193,15 @@ class AliasingToolbox:
         num_samples = int(np.floor(duration * f_samp))
         if num_samples < 2: num_samples = 2
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
-        # Use the SignalRegistry to create and calculate the sampled signal
-        y_samp = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
+
+        # Sample the signal (Ideal samples before quantization)
+        y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
 
         levels = 2**bits
-        y_samp = np.round((y_samp + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
+        y_samp = np.round((y_samp_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
+        
+        # Quantization Error: Difference between quantized and ideal samples
+        quant_error = y_samp - y_samp_ideal
 
         N_samp = len(y_samp)
         if window_type == 'Hamming': window = np.hamming(N_samp)
@@ -216,6 +226,11 @@ class AliasingToolbox:
         self.dots_samp.set_offsets(np.c_[t_samp, y_samp])
         self.ax_time.set_xlim(0, duration)
         self.ax_time.set_ylim(-1.3 - a_harm, 1.3 + a_harm)
+
+        # Update Quantization Plot
+        self.line_quant.set_data(t_samp, quant_error)
+        self.ax_quant.set_xlim(0, duration)
+        self.ax_quant.set_ylim(-1.5/(levels-1 if levels>1 else 1), 1.5/(levels-1 if levels>1 else 1))
 
         self.line_spec.set_data(freqs, mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
