@@ -167,6 +167,17 @@ class AliasingToolbox:
 
         if f_sig <= 0 or f_samp <= 0: return
 
+        # Update slider labels based on wave type for pedagogical clarity
+        if wave_type in ['AM', 'FM']:
+            self.s_f_sig.label.set_text('Carrier Freq (Hz)')
+            self.s_f_harm.label.set_text('Message Freq (Hz)')
+            self.s_f_harm_amp.label.set_text('Mod Index (β/m)')
+        else:
+            self.s_f_sig.label.set_text('Base Freq (Hz)')
+            self.s_f_harm.label.set_text('Harmonic (Hz)')
+            self.s_f_harm_amp.label.set_text('Harmonic Amp')
+        self.fig.canvas.draw_idle()
+
         duration = 3 / f_sig
         t_cont = np.linspace(0, duration, self.num_continuous_points)
         # Use the SignalRegistry to create and calculate the continuous signal
@@ -208,14 +219,17 @@ class AliasingToolbox:
         self.line_spec.set_data(freqs, mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
         
-        # Determine the true signal frequency for the indicator line
-        if wave_type in ['Sine', 'Square', 'Sawtooth']:
-            true_freq_for_indicator = max(f_sig, f_harm if a_harm > 0 else 0)
-        elif wave_type in ['AM', 'FM']:
-            true_freq_for_indicator = f_sig # Carrier frequency is often the primary reference
+        # Determine the maximum frequency component for aliasing detection and indicator
+        if wave_type == 'AM':
+            max_freq = f_sig + f_harm if a_harm > 0 else f_sig
+        elif wave_type == 'FM':
+            # Carson's Rule approximation for significant bandwidth: BW = 2 * (beta + 1) * fm
+            # Significant frequency edge is f_carrier + (beta + 1) * f_message
+            max_freq = f_sig + (a_harm + 1) * f_harm if a_harm > 0 else f_sig
         else:
-            true_freq_for_indicator = f_sig # Default to f_sig for unknown types
-        self.true_freq_line.set_xdata([true_freq_for_indicator, true_freq_for_indicator])
+            max_freq = max(f_sig, f_harm if a_harm > 0 else 0)
+            
+        self.true_freq_line.set_xdata([max_freq, max_freq])
 
         noise = y_cont - y_recon
         rmse = np.sqrt(np.mean(noise**2))
@@ -223,10 +237,13 @@ class AliasingToolbox:
         noise_power = np.mean(noise**2)
         snr = 10 * np.log10(signal_power / noise_power) if noise_power > 0 else 100
 
-        # For now, keep the aliasing check simple, based on the highest frequency component
-        # A more sophisticated check would involve the signal's actual bandwidth.
-        is_aliased = f_samp < 2 * max(f_sig, f_harm if a_harm > 0 else 0) 
-        msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB"
+        # Refined aliasing check: Nyquist requires f_samp > 2 * max_freq
+        is_aliased = f_samp < 2 * max_freq
+        
+        # Special pedagogical note: Square/Sawtooth waves technically alias at any sampling rate 
+        # because of their infinite harmonics, but we focus on the modeled components here.
+        
+        msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
         if is_aliased:
             msg += " | WARNING: ALIASING DETECTED"
             self.status_text.get_bbox_patch().set_facecolor('orange')
