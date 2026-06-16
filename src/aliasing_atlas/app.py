@@ -4,9 +4,15 @@ AliasingAtlas: A pedagogical tool for visualizing signal sampling and aliasing.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, RadioButtons, CheckButtons
+from matplotlib.widgets import Slider, RadioButtons, CheckButtons, Button
 from typing import Union, Optional, List, Dict, Type
 from abc import ABC, abstractmethod
+
+# Optional import for audio playback in Jupyter/Colab environments
+try:
+    from IPython.display import Audio, display
+except ImportError:
+    Audio, display = None, None
 
 
 # --- Signal Generation Classes ---
@@ -97,6 +103,9 @@ class AliasingToolbox:
         self.num_continuous_points = 1000
         self.phase = np.pi / 4
 
+        self.last_y_samp: Optional[np.ndarray] = None
+        self.last_f_samp: Optional[float] = None
+
         self.fig = plt.figure(figsize=(14, 10))
         plt.subplots_adjust(bottom=0.28, hspace=0.7)
 
@@ -141,6 +150,7 @@ class AliasingToolbox:
         self.ax_wave = plt.axes([0.25, 0.02, 0.12, 0.06], facecolor=slider_color)
         self.ax_aaf = plt.axes([0.40, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
+        self.ax_play_audio = plt.axes([0.60, 0.02, 0.08, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -155,6 +165,7 @@ class AliasingToolbox:
         self.ax_wave.set_title("Waveform", fontsize=10)
         self.w_aaf = CheckButtons(self.ax_aaf, ('AAF On',), [False])
         self.w_db = CheckButtons(self.ax_db_scale, ('dB Scale',), [False])
+        self.btn_play_audio = Button(self.ax_play_audio, 'Play Audio')
 
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
@@ -166,9 +177,46 @@ class AliasingToolbox:
         self.w_wave.on_clicked(self.update)
         self.w_aaf.on_clicked(self.update)
         self.w_db.on_clicked(self.update)
+        self.btn_play_audio.on_clicked(self._play_audio_callback)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
+
+    def _play_audio_callback(self, event) -> None:
+        """Callback for the Play Audio button."""
+        if Audio is None or display is None:
+            self.status_text.set_text("Audio playback requires IPython (Notebook environment)")
+            self.status_text.get_bbox_patch().set_facecolor('orange')
+            self.fig.canvas.draw_idle()
+            return
+
+        # Pedagogical improvement: Fetch current parameters to generate 
+        # a longer audio sample (1.5s) so the progress bar is visible and useful.
+        f_sig = self.s_f_sig.val
+        f_harm = self.s_f_harm.val
+        a_harm = self.s_f_harm_amp.val
+        phase = self.s_phase.val
+        f_samp = self.s_f_samp.val
+        bits = int(self.s_bits.val)
+        wave_type = self.w_wave.value_selected
+
+        # Generate 1.5 seconds of the signal
+        t_audio = np.linspace(0, 1.5, int(1.5 * f_samp))
+        y_audio_ideal = SignalRegistry.create_signal(wave_type, t_audio, f_sig, f_harm, a_harm, phase)
+        
+        # Apply the current bit-depth quantization
+        levels = 2**bits
+        y_audio_quant = np.round((y_audio_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
+        
+        # Normalize to prevent clipping
+        max_v = np.max(np.abs(y_audio_quant))
+        audio_data = y_audio_quant / max_v if max_v > 0 else y_audio_quant
+
+        # This renders the HTML5 player with a progress bar in the Colab output area
+        display(Audio(data=audio_data, rate=int(f_samp), autoplay=True))
+        
+        self.status_text.set_text(f"Audio player for {wave_type} generated below.")
+        self.fig.canvas.draw_idle()
 
     def update(self, val: Optional[float]) -> None:
         f_sig = self.s_f_sig.val
@@ -230,6 +278,10 @@ class AliasingToolbox:
         levels = 2**bits
         y_samp = np.round((y_samp_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
         
+        # Store for audio playback
+        self.last_y_samp = y_samp
+        self.last_f_samp = f_samp
+
         # Quantization Error: Difference between quantized and ideal samples
         quant_error = y_samp - y_samp_ideal
 
