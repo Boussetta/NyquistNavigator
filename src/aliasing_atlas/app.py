@@ -107,6 +107,7 @@ class AliasingToolbox:
         self.ax_freq = self.fig.add_subplot(3, 1, 2)
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
+        self.ax_freq.set_ylabel("Magnitude")
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
         self.ax_freq.set_ylim(0, 1.5)
 
@@ -139,6 +140,7 @@ class AliasingToolbox:
         self.ax_window = plt.axes([0.10, 0.02, 0.12, 0.06], facecolor=slider_color)
         self.ax_wave = plt.axes([0.25, 0.02, 0.12, 0.06], facecolor=slider_color)
         self.ax_aaf = plt.axes([0.40, 0.02, 0.08, 0.06], facecolor=slider_color)
+        self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -152,6 +154,7 @@ class AliasingToolbox:
         self.w_wave = RadioButtons(self.ax_wave, tuple(SignalRegistry._signals.keys()))
         self.ax_wave.set_title("Waveform", fontsize=10)
         self.w_aaf = CheckButtons(self.ax_aaf, ('AAF On',), [False])
+        self.w_db = CheckButtons(self.ax_db_scale, ('dB Scale',), [False])
 
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
@@ -162,6 +165,7 @@ class AliasingToolbox:
         self.w_radio.on_clicked(self.update)
         self.w_wave.on_clicked(self.update)
         self.w_aaf.on_clicked(self.update)
+        self.w_db.on_clicked(self.update)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
@@ -176,6 +180,7 @@ class AliasingToolbox:
         window_type = self.w_radio.value_selected
         wave_type = self.w_wave.value_selected
         aaf_on = self.w_aaf.get_status()[0]
+        db_on = self.w_db.get_status()[0]
 
         if f_sig <= 0 or f_samp <= 0: return
 
@@ -245,6 +250,16 @@ class AliasingToolbox:
         freqs = np.fft.rfftfreq(N_samp, 1/f_samp)
         mags = np.abs(np.fft.rfft(y_samp_fft_input)) / N_samp
 
+        if db_on:
+            # Convert to dB, using a floor of 1e-5 (-100dB) to avoid log(0)
+            display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
+            self.ax_freq.set_ylabel("Magnitude (dB)")
+            self.ax_freq.set_ylim(-105, 10)
+        else:
+            display_mags = mags
+            self.ax_freq.set_ylabel("Magnitude")
+            self.ax_freq.set_ylim(0, 1.5)
+
         self.line_cont.set_data(t_cont, y_cont)
         self.line_filt.set_data(t_cont, y_filt_cont)
         self.line_step.set_data(t_samp, y_samp)
@@ -258,7 +273,7 @@ class AliasingToolbox:
         self.ax_quant.set_xlim(0, duration)
         self.ax_quant.set_ylim(-1.5/(levels-1 if levels>1 else 1), 1.5/(levels-1 if levels>1 else 1))
 
-        self.line_spec.set_data(freqs, mags)
+        self.line_spec.set_data(freqs, display_mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
         
         # Determine the maximum frequency component for aliasing detection and indicator
