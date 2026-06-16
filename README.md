@@ -63,6 +63,7 @@ pytest
 -   **Bit-Depth Quantization:** Explore the effects of reduced bit-depth and view the error residuals.
 -   **Advanced Modulation:** Supports AM and FM modulation to demonstrate bandwidth expansion.
 -   **Windowing:** Compare Hamming and Hann windows for spectral analysis.
+-   **Audio Playback:** Hear the effects of sampling, aliasing, and quantization directly.
 
 ## Example Usage
 

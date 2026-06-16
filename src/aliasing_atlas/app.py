@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 try:
     from IPython.display import Audio, display
 except ImportError:
-    Audio, display = None, None
+    Audio, display = None, None # Fallback for non-IPython environments
 
 
 # --- Signal Generation Classes ---
@@ -184,14 +184,15 @@ class AliasingToolbox:
 
     def _play_audio_callback(self, event) -> None:
         """Callback for the Play Audio button."""
-        if Audio is None or display is None:
-            self.status_text.set_text("Audio playback requires IPython (Notebook environment)")
+        if Audio is None or display is None: # Check if IPython.display is available
+            self.status_text.set_text("Audio playback requires IPython (Notebook environment).")
             self.status_text.get_bbox_patch().set_facecolor('orange')
             self.fig.canvas.draw_idle()
             return
 
         # Pedagogical improvement: Fetch current parameters to generate 
         # a longer audio sample (1.5s) so the progress bar is visible and useful.
+        # Fetch current slider values
         f_sig = self.s_f_sig.val
         f_harm = self.s_f_harm.val
         a_harm = self.s_f_harm_amp.val
@@ -200,22 +201,54 @@ class AliasingToolbox:
         bits = int(self.s_bits.val)
         wave_type = self.w_wave.value_selected
 
+        # Ensure f_samp is not zero or too small for audio generation
+        if f_samp <= 0:
+            self.status_text.set_text("Cannot play audio: Sampling frequency must be greater than 0.")
+            self.status_text.get_bbox_patch().set_facecolor('red')
+            self.fig.canvas.draw_idle()
+            return
+
+        # Generate 1.5 seconds of the signal for audio playback
+        # Ensure at least 2 samples for linspace to work correctly and produce sound
+        num_audio_samples = max(2, int(1.5 * f_samp)) 
+        t_audio = np.linspace(0, 1.5, num_audio_samples)
+        
+        if len(t_audio) == 0:
+            self.status_text.set_text("Cannot generate audio: insufficient samples for given sampling rate.")
+            self.status_text.get_bbox_patch().set_facecolor('red')
+            self.fig.canvas.draw_idle()
+            return
+
         # Generate 1.5 seconds of the signal
-        t_audio = np.linspace(0, 1.5, int(1.5 * f_samp))
         y_audio_ideal = SignalRegistry.create_signal(wave_type, t_audio, f_sig, f_harm, a_harm, phase)
         
         # Apply the current bit-depth quantization
         levels = 2**bits
-        y_audio_quant = np.round((y_audio_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
+        # Ensure levels-1 is not zero to avoid division by zero if bits=1 (though slider min is 2)
+        divisor = (levels - 1) if (levels - 1) > 0 else 1
+        y_audio_quant = np.round((y_audio_ideal + 1) / 2 * divisor) / divisor * 2 - 1
         
         # Normalize to prevent clipping
         max_v = np.max(np.abs(y_audio_quant))
         audio_data = y_audio_quant / max_v if max_v > 0 else y_audio_quant
 
+        if len(audio_data) == 0:
+            self.status_text.set_text("Cannot play audio: generated signal is empty.")
+            self.status_text.get_bbox_patch().set_facecolor('red')
+            self.fig.canvas.draw_idle()
+            return
+
+        # Debugging prints to confirm data before playback
+        print(f"--- Audio Playback Debug ---")
+        print(f"Audio data length: {len(audio_data)}")
+        print(f"Audio sampling rate: {int(f_samp)}")
+        print(f"Max absolute value in audio data: {max_v}")
+        print(f"----------------------------")
+
         # This renders the HTML5 player with a progress bar in the Colab output area
         display(Audio(data=audio_data, rate=int(f_samp), autoplay=True))
         
-        self.status_text.set_text(f"Audio player for {wave_type} generated below.")
+        self.status_text.set_text(f"Audio player for {wave_type} generated below. Playing...")
         self.fig.canvas.draw_idle()
 
     def update(self, val: Optional[float]) -> None:
