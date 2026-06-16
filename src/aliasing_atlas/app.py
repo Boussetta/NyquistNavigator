@@ -190,9 +190,11 @@ class AliasingToolbox:
             self.fig.canvas.draw_idle()
             return
 
-        # Pedagogical improvement: Fetch current parameters to generate 
-        # a longer audio sample (1.5s) so the progress bar is visible and useful.
-        # Fetch current slider values
+        # Standard audio sampling rate for browser compatibility
+        PLAYBACK_FS = 44100
+        DURATION = 1.5
+
+        # Fetch current parameters
         f_sig = self.s_f_sig.val
         f_harm = self.s_f_harm.val
         a_harm = self.s_f_harm_amp.val
@@ -200,53 +202,53 @@ class AliasingToolbox:
         f_samp = self.s_f_samp.val
         bits = int(self.s_bits.val)
         wave_type = self.w_wave.value_selected
+        aaf_on = self.w_aaf.get_status()[0]
 
-        # Ensure f_samp is not zero or too small for audio generation
         if f_samp <= 0:
             self.status_text.set_text("Cannot play audio: Sampling frequency must be greater than 0.")
             self.status_text.get_bbox_patch().set_facecolor('red')
             self.fig.canvas.draw_idle()
             return
 
-        # Generate 1.5 seconds of the signal for audio playback
-        # Ensure at least 2 samples for linspace to work correctly and produce sound
-        num_audio_samples = max(2, int(1.5 * f_samp)) 
-        t_audio = np.linspace(0, 1.5, num_audio_samples)
-        
-        if len(t_audio) == 0:
-            self.status_text.set_text("Cannot generate audio: insufficient samples for given sampling rate.")
-            self.status_text.get_bbox_patch().set_facecolor('red')
-            self.fig.canvas.draw_idle()
-            return
+        # Create a high-resolution time base for playback
+        t_playback = np.linspace(0, DURATION, int(DURATION * PLAYBACK_FS))
 
-        # Generate 1.5 seconds of the signal
-        y_audio_ideal = SignalRegistry.create_signal(wave_type, t_audio, f_sig, f_harm, a_harm, phase)
+        # Emulate the 'sampling' effect (Zero-Order Hold)
+        # We calculate the signal values at discrete steps of f_samp
+        t_sampled_steps = np.floor(t_playback * f_samp) / f_samp
+        
+        if aaf_on:
+            # For audio AAF, we filter the high-res signal at f_samp/2
+            y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase)
+            yf = np.fft.fft(y_full)
+            xf = np.fft.fftfreq(len(t_playback), 1/PLAYBACK_FS)
+            yf[np.abs(xf) > f_samp / 2] = 0
+            y_audio_base = np.fft.ifft(yf).real
+            # Then we "sample" that filtered signal
+            indices = (t_sampled_steps * PLAYBACK_FS).astype(int)
+            indices = np.clip(indices, 0, len(y_audio_base) - 1)
+            y_audio_ideal = y_audio_base[indices]
+        else:
+            y_audio_ideal = SignalRegistry.create_signal(wave_type, t_sampled_steps, f_sig, f_harm, a_harm, phase)
         
         # Apply the current bit-depth quantization
         levels = 2**bits
-        # Ensure levels-1 is not zero to avoid division by zero if bits=1 (though slider min is 2)
         divisor = (levels - 1) if (levels - 1) > 0 else 1
         y_audio_quant = np.round((y_audio_ideal + 1) / 2 * divisor) / divisor * 2 - 1
         
-        # Normalize to prevent clipping
         max_v = np.max(np.abs(y_audio_quant))
         audio_data = y_audio_quant / max_v if max_v > 0 else y_audio_quant
 
-        if len(audio_data) == 0:
-            self.status_text.set_text("Cannot play audio: generated signal is empty.")
-            self.status_text.get_bbox_patch().set_facecolor('red')
-            self.fig.canvas.draw_idle()
-            return
-
         # Debugging prints to confirm data before playback
         print(f"--- Audio Playback Debug ---")
-        print(f"Audio data length: {len(audio_data)}")
-        print(f"Audio sampling rate: {int(f_samp)}")
+        print(f"Signal Length: {DURATION}s")
+        print(f"Hardware Playback Rate: {PLAYBACK_FS} Hz")
+        print(f"Emulated Sampling Rate: {f_samp:.1f} Hz")
         print(f"Max absolute value in audio data: {max_v}")
         print(f"----------------------------")
 
-        # This renders the HTML5 player with a progress bar in the Colab output area
-        display(Audio(data=audio_data, rate=int(f_samp), autoplay=True))
+        # Send to browser at a standard 44.1kHz rate
+        display(Audio(data=audio_data, rate=PLAYBACK_FS, autoplay=True))
         
         self.status_text.set_text(f"Audio player for {wave_type} generated below. Playing...")
         self.fig.canvas.draw_idle()
