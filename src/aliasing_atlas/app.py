@@ -4,7 +4,7 @@ AliasingAtlas: A pedagogical tool for visualizing signal sampling and aliasing.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, RadioButtons
+from matplotlib.widgets import Slider, RadioButtons, CheckButtons
 from typing import Union, Optional, List, Dict, Type
 from abc import ABC, abstractmethod
 
@@ -116,6 +116,7 @@ class AliasingToolbox:
         self.ax_quant.set_ylabel("Error")
 
         self.line_cont, = self.ax_time.plot([], [], 'b--', alpha=0.4, label='Ideal Continuous')
+        self.line_filt, = self.ax_time.plot([], [], 'y-', alpha=0.7, linewidth=1.5, label='AAF Filtered', zorder=2)
         self.line_step, = self.ax_time.step([], [], where='post', color='crimson', alpha=0.6, label='Zero-Order Hold')
         self.line_fft, = self.ax_time.plot([], [], 'g-', linewidth=2, label='FFT Reconstruction')
         self.dots_samp = self.ax_time.scatter([], [], color='darkred', s=20, zorder=3)
@@ -135,8 +136,9 @@ class AliasingToolbox:
         self.ax_phase = plt.axes([0.58, 0.18, 0.32, 0.015], facecolor=slider_color)
         self.ax_f_samp = plt.axes([0.58, 0.14, 0.32, 0.015], facecolor=slider_color)
         self.ax_bits = plt.axes([0.58, 0.10, 0.32, 0.015], facecolor=slider_color)
-        self.ax_window = plt.axes([0.12, 0.02, 0.15, 0.06], facecolor=slider_color)
-        self.ax_wave = plt.axes([0.35, 0.02, 0.15, 0.06], facecolor=slider_color)
+        self.ax_window = plt.axes([0.10, 0.02, 0.12, 0.06], facecolor=slider_color)
+        self.ax_wave = plt.axes([0.25, 0.02, 0.12, 0.06], facecolor=slider_color)
+        self.ax_aaf = plt.axes([0.40, 0.02, 0.08, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -149,6 +151,7 @@ class AliasingToolbox:
         self.ax_window.set_title("Window", fontsize=10)
         self.w_wave = RadioButtons(self.ax_wave, tuple(SignalRegistry._signals.keys()))
         self.ax_wave.set_title("Waveform", fontsize=10)
+        self.w_aaf = CheckButtons(self.ax_aaf, ('AAF On',), [False])
 
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
@@ -158,6 +161,7 @@ class AliasingToolbox:
         self.s_bits.on_changed(self.update)
         self.w_radio.on_clicked(self.update)
         self.w_wave.on_clicked(self.update)
+        self.w_aaf.on_clicked(self.update)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
@@ -171,6 +175,7 @@ class AliasingToolbox:
         bits = int(self.s_bits.val)
         window_type = self.w_radio.value_selected
         wave_type = self.w_wave.value_selected
+        aaf_on = self.w_aaf.get_status()[0]
 
         if f_sig <= 0 or f_samp <= 0: return
 
@@ -190,12 +195,32 @@ class AliasingToolbox:
         # Use the SignalRegistry to create and calculate the continuous signal
         y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase)
 
+        # Apply Ideal Anti-Aliasing Filter (Brick Wall at Fs/2)
+        if aaf_on:
+            # Pedagogical Step: Filter the 'analog' signal before sampling
+            n = len(t_cont)
+            dt = t_cont[1] - t_cont[0]
+            yf = np.fft.fft(y_cont)
+            xf = np.fft.fftfreq(n, dt)
+            
+            # Zero out frequencies above Nyquist limit
+            yf[np.abs(xf) > f_samp / 2] = 0
+            y_filt_cont = np.fft.ifft(yf).real
+        else:
+            y_filt_cont = y_cont
+
         num_samples = int(np.floor(duration * f_samp))
         if num_samples < 2: num_samples = 2
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
 
-        # Sample the signal (Ideal samples before quantization)
-        y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
+        if aaf_on:
+            # Sample the filtered 'analog' signal
+            y_samp_ideal = np.interp(t_samp, t_cont, y_filt_cont)
+            self.line_filt.set_visible(True)
+        else:
+            # Sample the raw signal
+            y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
+            self.line_filt.set_visible(False)
 
         levels = 2**bits
         y_samp = np.round((y_samp_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
@@ -221,6 +246,7 @@ class AliasingToolbox:
         mags = np.abs(np.fft.rfft(y_samp_fft_input)) / N_samp
 
         self.line_cont.set_data(t_cont, y_cont)
+        self.line_filt.set_data(t_cont, y_filt_cont)
         self.line_step.set_data(t_samp, y_samp)
         self.line_fft.set_data(t_cont, y_recon)
         self.dots_samp.set_offsets(np.c_[t_samp, y_samp])
