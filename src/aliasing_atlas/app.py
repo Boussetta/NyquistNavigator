@@ -4,7 +4,7 @@ AliasingAtlas: A pedagogical tool for visualizing signal sampling and aliasing.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, RadioButtons, CheckButtons, Button
+from matplotlib.widgets import Slider, RadioButtons, Button
 from typing import Optional
 try:
     from scipy import signal as sp_signal
@@ -39,26 +39,26 @@ class AliasingToolbox:
         self.last_f_samp: Optional[float] = None
 
         self.fig = plt.figure(figsize=(14, 10))
-        plt.subplots_adjust(bottom=0.28, hspace=0.8)
+        plt.subplots_adjust(bottom=0.35, hspace=0.4, wspace=0.25)
 
-        self.ax_time = self.fig.add_subplot(4, 1, 1)
+        self.ax_time = self.fig.add_subplot(2, 2, 1)
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight='bold')
         self.ax_time.grid(True, linestyle=':', alpha=0.6)
 
-        self.ax_freq = self.fig.add_subplot(4, 1, 2)
+        self.ax_freq = self.fig.add_subplot(2, 2, 2)
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
         self.ax_freq.set_ylabel("Magnitude")
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
         self.ax_freq.set_ylim(0, 1.5)
 
-        self.ax_phase = self.fig.add_subplot(4, 1, 3)
+        self.ax_phase = self.fig.add_subplot(2, 2, 3)
         self.ax_phase.set_title("Frequency Domain: Phase Spectrum", fontweight='bold')
         self.ax_phase.grid(True, linestyle=':', alpha=0.6)
         self.ax_phase.set_ylabel("Phase (rad)")
         self.ax_phase.set_ylim(-np.pi - 0.5, np.pi + 0.5)
 
-        self.ax_quant = self.fig.add_subplot(4, 1, 4)
+        self.ax_quant = self.fig.add_subplot(2, 2, 4)
         self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight='bold')
         self.ax_quant.grid(True, linestyle=':', alpha=0.6)
         self.ax_quant.set_ylabel("Error Amp")
@@ -79,47 +79,91 @@ class AliasingToolbox:
         self.ax_freq.legend(loc='upper right', fontsize='small')
 
         slider_color = 'lightsteelblue'
-        self.ax_f_sig = plt.axes([0.12, 0.18, 0.32, 0.015], facecolor=slider_color)
-        self.ax_f_harm = plt.axes([0.12, 0.14, 0.32, 0.015], facecolor=slider_color)
-        self.ax_a_harm = plt.axes([0.12, 0.10, 0.32, 0.015], facecolor=slider_color)
-        self.ax_phase = plt.axes([0.58, 0.18, 0.32, 0.015], facecolor=slider_color)
-        self.ax_f_samp = plt.axes([0.58, 0.14, 0.32, 0.015], facecolor=slider_color)
-        self.ax_n_harm = plt.axes([0.58, 0.10, 0.32, 0.015], facecolor=slider_color)
-        
-        self.ax_bits = plt.axes([0.12, 0.06, 0.20, 0.015], facecolor=slider_color)
-        self.ax_vol = plt.axes([0.42, 0.06, 0.20, 0.015], facecolor=slider_color)
-        self.ax_dur = plt.axes([0.72, 0.06, 0.20, 0.015], facecolor=slider_color)
 
-        self.ax_window = plt.axes([0.10, 0.02, 0.12, 0.06], facecolor=slider_color)
-        self.ax_wave = plt.axes([0.25, 0.02, 0.12, 0.06], facecolor=slider_color)
-        self.ax_aaf = plt.axes([0.40, 0.02, 0.09, 0.06], facecolor=slider_color)
-        self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
-        self.ax_play_audio = plt.axes([0.60, 0.02, 0.08, 0.06], facecolor=slider_color)
-        self.ax_audio_src = plt.axes([0.72, 0.02, 0.12, 0.06], facecolor=slider_color)
-        self.ax_reset = plt.axes([0.86, 0.02, 0.08, 0.06], facecolor=slider_color)
+        # Tab Selection Logic
+        self.cax_tabs = plt.axes([0.02, 0.05, 0.10, 0.18], facecolor='whitesmoke')
+        self.w_tabs = RadioButtons(self.cax_tabs, ('Signal', 'Sampling', 'Audio'))
+        self.cax_tabs.set_title("Navigation", fontsize=10, fontweight='bold')
 
-        self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
-        self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
-        self.s_f_harm_amp = Slider(self.ax_a_harm, 'Harmonic Amp', 0.0, 1.0, valinit=0.0)
-        self.s_phase = Slider(self.ax_phase, 'Phase', 0, 2*np.pi, valinit=np.pi/4)
-        self.s_f_samp = Slider(self.ax_f_samp, 'Sampling (Hz)', 5.0, self.f_samp_max, valinit=50.0)
-        self.s_n_harm = Slider(self.ax_n_harm, 'Fourier Harm.', 1, 50, valinit=1, valstep=1)
-        self.s_bits = Slider(self.ax_bits, 'Bit Depth', 2, 16, valinit=16, valstep=1)
-        self.s_vol = Slider(self.ax_vol, 'Audio Vol', 0.0, 1.0, valinit=0.5)
-        self.s_dur = Slider(self.ax_dur, 'Audio Dur (s)', 0.5, 3.0, valinit=1.5)
+        # --- Persistent Core Controls (Always Visible) ---
+        self.cax_f_sig = plt.axes([0.20, 0.25, 0.28, 0.02], facecolor=slider_color)
+        self.cax_f_samp = plt.axes([0.58, 0.25, 0.28, 0.02], facecolor=slider_color)
+        self.cax_reset = plt.axes([0.88, 0.24, 0.08, 0.04], facecolor=slider_color)
 
-        self.w_radio = RadioButtons(self.ax_window, ('None', 'Hamming', 'Hann'))
-        self.ax_window.set_title("Window", fontsize=10)
-        self.w_wave = RadioButtons(self.ax_wave, tuple(SignalRegistry.get_signal_names()))
-        self.ax_wave.set_title("Waveform", fontsize=10)
-        self.w_aaf = RadioButtons(self.ax_aaf, ('None', 'Ideal', 'Butter'))
-        self.ax_aaf.set_title("AAF Filter", fontsize=10)
-        self.w_db = CheckButtons(self.ax_db_scale, ('dB Scale',), [False])
-        self.btn_play_audio = Button(self.ax_play_audio, 'Play Audio')
-        self.w_audio_src = RadioButtons(self.ax_audio_src, ('Sampled', 'Recon'))
-        self.ax_audio_src.set_title("Audio Source", fontsize=10)
-        self.btn_reset = Button(self.ax_reset, 'Reset All')
+        self.s_f_sig = Slider(self.cax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
+        self.s_f_samp = Slider(self.cax_f_samp, 'Sampling (Hz)', 5.0, self.f_samp_max, valinit=50.0)
+        self.btn_reset = Button(self.cax_reset, 'Reset All')
 
+        # --- TAB: Signal ---
+        self.cax_sig_box = plt.axes([0.15, 0.05, 0.65, 0.18], facecolor='whitesmoke', alpha=0.5)
+        self.cax_sig_box.set_title("Signal Components", fontsize=10, fontweight='bold')
+        self.cax_sig_box.set_xticks([]); self.cax_sig_box.set_yticks([])
+
+        self.cax_f_harm = plt.axes([0.25, 0.16, 0.20, 0.015], facecolor=slider_color)
+        self.cax_a_harm = plt.axes([0.25, 0.11, 0.20, 0.015], facecolor=slider_color)
+        self.cax_s_phase = plt.axes([0.55, 0.16, 0.20, 0.015], facecolor=slider_color)
+        self.cax_n_harm = plt.axes([0.55, 0.11, 0.20, 0.015], facecolor=slider_color)
+        self.cax_wave = plt.axes([0.82, 0.05, 0.12, 0.18], facecolor=slider_color)
+
+        self.s_f_harm = Slider(self.cax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
+        self.s_f_harm_amp = Slider(self.cax_a_harm, 'Harmonic Amp', 0.0, 1.0, valinit=0.0)
+        self.s_phase = Slider(self.cax_s_phase, 'Phase', 0, 2*np.pi, valinit=np.pi/4)
+        self.s_n_harm = Slider(self.cax_n_harm, 'Fourier Harm.', 1, 50, valinit=1, valstep=1)
+        self.w_wave = RadioButtons(self.cax_wave, tuple(SignalRegistry.get_signal_names()))
+        self.cax_wave.set_title("Waveform", fontsize=10)
+
+        self.tab_signal_axes = [self.cax_sig_box, self.cax_f_harm, self.cax_a_harm, self.cax_s_phase, self.cax_n_harm, self.cax_wave]
+
+        # --- TAB: Sampling ---
+        self.cax_quant_box = plt.axes([0.15, 0.05, 0.35, 0.18], facecolor='whitesmoke', alpha=0.5)
+        self.cax_quant_box.set_title("Quantization", fontsize=10, fontweight='bold')
+        self.cax_quant_box.set_xticks([]); self.cax_quant_box.set_yticks([])
+
+        self.cax_bits = plt.axes([0.22, 0.12, 0.25, 0.015], facecolor=slider_color)
+        self.cax_window = plt.axes([0.55, 0.05, 0.10, 0.18], facecolor=slider_color)
+        self.cax_aaf = plt.axes([0.68, 0.05, 0.10, 0.18], facecolor=slider_color)
+        self.cax_db_scale = plt.axes([0.82, 0.05, 0.12, 0.12], facecolor=slider_color)
+
+        self.s_bits = Slider(self.cax_bits, 'Bit Depth', 2, 16, valinit=16, valstep=1)
+        self.w_radio = RadioButtons(self.cax_window, ('None', 'Hamming', 'Hann'))
+        self.cax_window.set_title("Window", fontsize=10)
+        self.w_aaf = RadioButtons(self.cax_aaf, ('None', 'Ideal', 'Butter'))
+        self.cax_aaf.set_title("AAF Filter", fontsize=10)
+        self.w_db = RadioButtons(self.cax_db_scale, ('Linear', 'dB Scale'))
+        self.cax_db_scale.set_title("Scale", fontsize=10)
+
+        self.tab_sampling_axes = [self.cax_quant_box, self.cax_bits, self.cax_window, self.cax_aaf, self.cax_db_scale]
+
+        # --- TAB: Audio ---
+        self.cax_audio_box = plt.axes([0.15, 0.05, 0.35, 0.18], facecolor='whitesmoke', alpha=0.5)
+        self.cax_audio_box.set_title("Playback Settings", fontsize=10, fontweight='bold')
+        self.cax_audio_box.set_xticks([]); self.cax_audio_box.set_yticks([])
+
+        self.cax_vol = plt.axes([0.25, 0.16, 0.20, 0.015], facecolor=slider_color)
+        self.cax_dur = plt.axes([0.25, 0.11, 0.20, 0.015], facecolor=slider_color)
+        self.cax_audio_src = plt.axes([0.55, 0.05, 0.15, 0.18], facecolor=slider_color)
+        self.cax_play_audio = plt.axes([0.75, 0.10, 0.12, 0.08], facecolor=slider_color)
+
+        self.s_vol = Slider(self.cax_vol, 'Audio Vol', 0.0, 1.0, valinit=0.5)
+        self.s_dur = Slider(self.cax_dur, 'Audio Dur (s)', 0.5, 3.0, valinit=1.5)
+        self.w_audio_src = RadioButtons(self.cax_audio_src, ('Sampled', 'Recon'))
+        self.cax_audio_src.set_title("Audio Source", fontsize=10)
+        self.btn_play_audio = Button(self.cax_play_audio, 'Play Audio')
+
+        self.tab_audio_axes = [self.cax_audio_box, self.cax_vol, self.cax_dur, self.cax_audio_src, self.cax_play_audio]
+
+        # Grouping for visibility toggling
+        self.tab_groups = {
+            'Signal': self.tab_signal_axes,
+            'Sampling': self.tab_sampling_axes,
+            'Audio': self.tab_audio_axes
+        }
+
+        # Setup tab callback
+        self.w_tabs.on_clicked(self._tab_callback)
+        self._update_tab_visibility('Signal')
+
+        # Register callbacks
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
         self.s_f_harm_amp.on_changed(self.update)
@@ -140,6 +184,23 @@ class AliasingToolbox:
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
 
+    def _tab_callback(self, label: str) -> None:
+        """Handles switching between different navigation tabs."""
+        self._update_tab_visibility(label)
+        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
+
+    def _update_tab_visibility(self, active_tab: str) -> None:
+        """Sets visibility of axes based on the selected tab."""
+        for tab_name, axes_list in self.tab_groups.items():
+            is_visible = (tab_name == active_tab)
+            for ax in axes_list:
+                ax.set_visible(is_visible)
+                # Explicitly toggle visibility for internal artists (bullets and labels) 
+                # to prevent widgets from "ghosting" when the tab is switched.
+                for child in ax.get_children():
+                    child.set_visible(is_visible)
+
     def _reset_callback(self, event) -> None:
         """Resets all widgets to their initial values."""
         self.s_f_sig.reset()
@@ -156,8 +217,8 @@ class AliasingToolbox:
         self.w_wave.set_active(0)
         self.w_aaf.set_active(0)
         self.w_audio_src.set_active(0)
-        # Reset checkboxes only if they are currently enabled
-        if self.w_db.get_status()[0]: self.w_db.set_active(0)
+        self.w_db.set_active(0)
+
         self.fig.canvas.draw_idle()
 
     def _play_audio_callback(self, event) -> None:
@@ -275,7 +336,7 @@ class AliasingToolbox:
         window_type = self.w_radio.value_selected
         wave_type = self.w_wave.value_selected
         aaf_type = self.w_aaf.value_selected
-        db_on = self.w_db.get_status()[0]
+        db_on = self.w_db.value_selected == 'dB Scale'
         n_harm = int(self.s_n_harm.val)
         return f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_type, db_on, n_harm
 
