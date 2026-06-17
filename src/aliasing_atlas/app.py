@@ -23,6 +23,7 @@ from .dsp import (
 from .signals import SignalRegistry
 from .presets import get_preset, preset_names
 from .learning import build_learning_hint
+from .exporting import ensure_export_dir, save_config_json, timestamp_tag, write_wav_mono16
 
 try:
     from scipy import signal as sp_signal
@@ -180,14 +181,26 @@ class AliasingToolbox:
         self.cax_dur = plt.axes([0.25, 0.11, 0.20, 0.015], facecolor=slider_color)
         self.cax_audio_src = plt.axes([0.55, 0.05, 0.15, 0.18], facecolor=slider_color)
         self.cax_play_audio = plt.axes([0.75, 0.10, 0.12, 0.08], facecolor=slider_color)
+        self.cax_export_cfg = plt.axes([0.88, 0.10, 0.10, 0.05], facecolor=slider_color)
+        self.cax_export_wav = plt.axes([0.88, 0.04, 0.10, 0.05], facecolor=slider_color)
 
         self.s_vol = Slider(self.cax_vol, "Audio Vol", 0.0, 1.0, valinit=0.5)
         self.s_dur = Slider(self.cax_dur, "Audio Dur (s)", 0.5, 3.0, valinit=1.5)
         self.w_audio_src = RadioButtons(self.cax_audio_src, ("Sampled", "Recon"))
         self.cax_audio_src.set_title("Audio Source", fontsize=10)
         self.btn_play_audio = Button(self.cax_play_audio, "Play Audio")
+        self.btn_export_cfg = Button(self.cax_export_cfg, "Export CFG")
+        self.btn_export_wav = Button(self.cax_export_wav, "Export WAV")
 
-        self.tab_audio_axes = [self.cax_audio_box, self.cax_vol, self.cax_dur, self.cax_audio_src, self.cax_play_audio]
+        self.tab_audio_axes = [
+            self.cax_audio_box,
+            self.cax_vol,
+            self.cax_dur,
+            self.cax_audio_src,
+            self.cax_play_audio,
+            self.cax_export_cfg,
+            self.cax_export_wav,
+        ]
 
         self.tab_groups = {
             "Signal": self.tab_signal_axes,
@@ -216,6 +229,8 @@ class AliasingToolbox:
         self.w_learning.on_clicked(self.update)
         self.w_preset.on_clicked(self._preset_callback)
         self.btn_play_audio.on_clicked(self._play_audio_callback)
+        self.btn_export_cfg.on_clicked(self._export_config_callback)
+        self.btn_export_wav.on_clicked(self._export_wav_callback)
         self.btn_reset.on_clicked(self._reset_callback)
 
         self.status_text = self.fig.text(0.5, 0.01, "", ha="center", bbox=dict(facecolor="white", alpha=0.8))
@@ -292,6 +307,119 @@ class AliasingToolbox:
             self.w_db.value_selected == "dB Scale",
             int(self.s_n_harm.val),
         )
+
+    def _current_config_payload(self) -> dict:
+        (
+            f_sig,
+            f_harm,
+            a_harm,
+            phase,
+            f_samp,
+            bits,
+            window_type,
+            wave_type,
+            aaf_type,
+            recon_type,
+            db_on,
+            n_harm,
+        ) = self._get_params()
+        return {
+            "f_sig": float(f_sig),
+            "f_harm": float(f_harm),
+            "a_harm": float(a_harm),
+            "phase": float(phase),
+            "f_samp": float(f_samp),
+            "bits": int(bits),
+            "window_type": window_type,
+            "wave_type": wave_type,
+            "aaf_type": aaf_type,
+            "recon_type": recon_type,
+            "db_on": bool(db_on),
+            "n_harm": int(n_harm),
+            "audio_source": self.w_audio_src.value_selected,
+            "audio_volume": float(self.s_vol.val),
+            "audio_duration": float(self.s_dur.val),
+            "learning_mode": self.w_learning.value_selected,
+            "preset": self.w_preset.value_selected,
+        }
+
+    def _generate_audio_data(self, playback_fs: int) -> np.ndarray:
+        duration = self.s_dur.val
+        volume = self.s_vol.val
+        (
+            f_sig,
+            f_harm,
+            a_harm,
+            phase,
+            f_samp,
+            bits,
+            _,
+            wave_type,
+            aaf_type,
+            recon_type,
+            _,
+            n_harm,
+        ) = self._get_params()
+
+        num_playback = max(2, int(duration * playback_fs))
+        t_playback = np.linspace(0.0, duration, num_playback, endpoint=False)
+        y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase, n_harm)
+
+        y_filtered, _, _, _ = apply_anti_alias_filter(y_full, t_playback, f_samp, aaf_type, scipy_signal=sp_signal)
+        t_samp, y_samp = sample_signal(t_playback, y_filtered, f_samp, duration)
+        y_samp_q = quantize_signal(y_samp, bits)
+
+        if self.w_audio_src.value_selected == "Sampled":
+            indices = np.floor(t_playback * f_samp).astype(int)
+            indices = np.clip(indices, 0, len(y_samp_q) - 1)
+            audio_data = y_samp_q[indices]
+        elif recon_type == "FOH":
+            audio_data = reconstruct_foh(t_playback, t_samp, y_samp_q)
+        else:
+            audio_data = reconstruct_fft(y_samp_q, len(t_playback))
+
+        max_v = np.max(np.abs(audio_data))
+        return (audio_data / max_v if max_v > 0 else audio_data) * volume
+
+    def _export_config_callback(self, event) -> None:
+        out_dir = ensure_export_dir("exports")
+        tag = timestamp_tag()
+        path = out_dir / f"aliasing_config_{tag}.json"
+        save_config_json(path, self._current_config_payload())
+        self.status_text.set_text(f"Exported config to {path}")
+        self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
+        self.fig.canvas.draw_idle()
+
+    def _export_wav_callback(self, event) -> None:
+        (
+            _,
+            _,
+            _,
+            _,
+            f_samp,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) = self._get_params()
+        if f_samp <= 0:
+            self.status_text.set_text("Cannot export WAV: sampling frequency must be greater than 0.")
+            self.status_text.get_bbox_patch().set_facecolor("red")
+            self.fig.canvas.draw_idle()
+            return
+
+        playback_fs = 44100
+        out_dir = ensure_export_dir("exports")
+        tag = timestamp_tag()
+        path = out_dir / f"aliasing_audio_{tag}.wav"
+        audio_data = self._generate_audio_data(playback_fs)
+        write_wav_mono16(path, audio_data, playback_fs)
+        self.status_text.set_text(f"Exported WAV to {path}")
+        self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
+        self.fig.canvas.draw_idle()
 
     def _update_signal_labels(self, wave_type: str) -> None:
         if wave_type in ["AM", "FM"]:
@@ -487,43 +615,27 @@ class AliasingToolbox:
 
     def _play_audio_callback(self, event) -> None:
         playback_fs = 44100
-        duration = self.s_dur.val
-        volume = self.s_vol.val
-
-        f_sig, f_harm, a_harm, phase, f_samp, bits, _, wave_type, aaf_type, recon_type, _, n_harm = self._get_params()
+        (
+            _,
+            _,
+            _,
+            _,
+            f_samp,
+            _,
+            _,
+            wave_type,
+            _,
+            _,
+            _,
+            _,
+        ) = self._get_params()
 
         if f_samp <= 0:
             self.status_text.set_text("Cannot play audio: sampling frequency must be greater than 0.")
             self.status_text.get_bbox_patch().set_facecolor("red")
             self.fig.canvas.draw_idle()
             return
-
-        num_playback = max(2, int(duration * playback_fs))
-        t_playback = np.linspace(0.0, duration, num_playback, endpoint=False)
-        y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase, n_harm)
-
-        y_filtered, _, _, _ = apply_anti_alias_filter(
-            y_full,
-            t_playback,
-            f_samp,
-            aaf_type,
-            scipy_signal=sp_signal,
-        )
-
-        t_samp, y_samp = sample_signal(t_playback, y_filtered, f_samp, duration)
-        y_samp_q = quantize_signal(y_samp, bits)
-
-        if self.w_audio_src.value_selected == "Sampled":
-            indices = np.floor(t_playback * f_samp).astype(int)
-            indices = np.clip(indices, 0, len(y_samp_q) - 1)
-            audio_data = y_samp_q[indices]
-        elif recon_type == "FOH":
-            audio_data = reconstruct_foh(t_playback, t_samp, y_samp_q)
-        else:
-            audio_data = reconstruct_fft(y_samp_q, len(t_playback))
-
-        max_v = np.max(np.abs(audio_data))
-        audio_data = (audio_data / max_v if max_v > 0 else audio_data) * volume
+        audio_data = self._generate_audio_data(playback_fs)
 
         if sd is not None:
             try:
