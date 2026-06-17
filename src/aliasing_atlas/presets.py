@@ -1,4 +1,23 @@
-"""Curated pedagogical presets for AliasingAtlas."""
+"""Curated pedagogical presets for AliasingAtlas.
+
+Presets are pre-configured scenarios that illustrate key DSP concepts through
+specific parameter combinations. They provide "one-click" learning examples that
+demonstrate:
+
+    1. Safe Nyquist: Oversampling (fs >> 2*f_max) with high fidelity
+    2. Near Nyquist: Sampling at exactly or just above Nyquist boundary
+    3. Aliasing: Undersampling (fs < 2*f_max) demonstrating aliasing artifacts
+    4. AM Sidebands: Modulated signal with spectral analysis
+
+Each preset is immutable (frozen dataclass) to ensure consistent, reproducible
+pedagogical examples that cannot be accidentally modified.
+
+Typical Workflow:
+    1. User selects a preset from the UI dropdown
+    2. Preset values load all simulator parameters atomically
+    3. Visualization updates to show the preset scenario
+    4. User adjusts parameters incrementally to explore boundaries
+"""
 
 from dataclasses import dataclass
 from typing import Dict, List
@@ -6,6 +25,23 @@ from typing import Dict, List
 
 @dataclass(frozen=True)
 class Preset:
+    """Immutable configuration snapshot for a pedagogical scenario.
+    
+    Attributes:
+        name: Human-readable preset name.
+        f_sig: Signal/carrier frequency in Hz.
+        f_samp: Sampling frequency in Hz.
+        f_harm: Harmonic or modulation frequency in Hz.
+        a_harm: Amplitude or modulation index (0-1 typically).
+        phase: Initial phase offset in radians.
+        n_harm: Number of Fourier harmonics for synthesis.
+        bits: Quantization bit depth.
+        wave_type: Waveform type (Sine, Square, AM, etc.).
+        aaf_type: Anti-alias filter type (None, Ideal, Butter).
+        recon_type: Reconstruction method (FFT, FOH).
+        window_type: Spectral windowing (None, Hamming, Hann).
+    """
+
     name: str
     f_sig: float
     f_samp: float
@@ -20,6 +56,7 @@ class Preset:
     window_type: str
 
 
+# Pedagogical preset library
 PRESETS: Dict[str, Preset] = {
     "Safe Nyquist": Preset(
         name="Safe Nyquist",
@@ -81,8 +118,24 @@ PRESETS: Dict[str, Preset] = {
 
 
 def preset_names() -> List[str]:
+    """Return list of available preset names in order.
+    
+    Returns:
+        Sorted list of preset identifiers.
+    """
     return list(PRESETS.keys())
 
 
 def get_preset(name: str) -> Preset:
+    """Retrieve a preset configuration by name.
+    
+    Args:
+        name: Preset identifier (must exist in PRESETS).
+    
+    Returns:
+        Immutable Preset dataclass with all configuration parameters.
+    
+    Raises:
+        KeyError: If preset name is not found.
+    """
     return PRESETS[name]

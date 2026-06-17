@@ -1,4 +1,32 @@
-"""Pure DSP helpers for sampling, reconstruction, and analysis."""
+"""Pure DSP helpers for sampling, reconstruction, and analysis.
+
+This module provides testable, reusable digital signal processing functions that are
+decoupled from the UI. All functions are pure (no side effects) and accept NumPy arrays
+or scalar values as inputs.
+
+Core Capabilities:
+    - Signal generation and time-domain analysis
+    - Sampling and quantization operations
+    - Anti-alias filtering and windowing
+    - Frequency-domain analysis via FFT
+    - Multiple reconstruction methods (FFT-based, first-order hold)
+    - Alias detection and folding frequency calculation
+    - Reconstruction quality metrics (SNR, MAE, RMSE)
+
+Mathematical Foundation:
+    - Sampling: Nyquist-Shannon theorem (fs >= 2*f_max)
+    - Aliasing: Frequency folding around Nyquist frequency (fs/2)
+    - Reconstruction: FFT interpolation and zero/first-order hold methods
+    - Quantization: Uniform mid-rise quantizer for bit depth reduction
+
+Type Hints:
+    All functions include complete type hints and comprehensive docstrings
+    following Google style conventions.
+
+Dependencies:
+    - NumPy: Core array operations
+    - SciPy (optional): Butterworth filter design
+"""
 
 from typing import Optional, Tuple
 
@@ -6,12 +34,50 @@ import numpy as np
 
 
 def compute_duration(f_sig: float, cycles: float = 3.0) -> float:
-    """Return visualization duration that shows a fixed number of cycles."""
+    """Return visualization duration that shows a fixed number of cycles.
+    
+    Determines how long (in seconds) to display the signal based on the signal
+    frequency and desired number of complete oscillation cycles. This ensures
+    that lower frequencies still show meaningful variation in the viewport.
+    
+    Args:
+        f_sig: Signal frequency in Hz (must be positive).
+        cycles: Number of complete oscillation cycles to display. Default is 3.0.
+    
+    Returns:
+        Duration in seconds. If f_sig is zero or negative, returns 1.0 second default.
+    
+    Examples:
+        >>> compute_duration(10.0, cycles=3.0)  # 0.3 seconds (3 cycles of 10 Hz)
+        0.3
+        >>> compute_duration(1.0, cycles=2.0)   # 2.0 seconds (2 cycles of 1 Hz)
+        2.0
+    """
     return cycles / f_sig if f_sig > 0 else 1.0
 
 
 def compute_continuous_points(max_freq: float, minimum: int = 1000, scale: int = 20) -> int:
-    """Pick continuous-time resolution based on highest modeled frequency."""
+    """Pick continuous-time resolution based on highest modeled frequency.
+    
+    Determines the number of points needed to represent the continuous signal
+    with sufficient fidelity for visualization. Uses a scaling rule (points = scale * max_freq)
+    to ensure higher frequencies are sampled more densely, maintaining a minimum
+    resolution for visibility.
+    
+    Args:
+        max_freq: Highest frequency component in Hz (e.g., from signal or harmonics).
+        minimum: Minimum number of points to always use. Default is 1000.
+        scale: Points-per-Hertz factor. Default is 20 (20 points per Hz of bandwidth).
+    
+    Returns:
+        Number of continuous-time sample points to use for rendering.
+    
+    Examples:
+        >>> compute_continuous_points(50.0)  # 1000 points (at least 1000)
+        1000
+        >>> compute_continuous_points(500.0)  # 10000 points (500 * 20)
+        10000
+    """
     return max(minimum, int(scale * max(max_freq, 1.0)))
 
 
@@ -22,7 +88,37 @@ def apply_anti_alias_filter(
     aaf_type: str,
     scipy_signal=None,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray], Optional[float]]:
-    """Apply optional anti-alias filtering to a continuous-time proxy signal."""
+    """Apply optional anti-alias filtering to a continuous-time proxy signal.
+    
+    Implements three anti-alias filter types:
+        1. "None": No filtering (passthrough)
+        2. "Ideal": Ideal brick-wall lowpass filter via frequency-domain zeroing
+        3. "Butter": Butterworth IIR filter (requires scipy.signal)
+    
+    The filter attenuates frequencies above the Nyquist frequency (fs/2) to prevent
+    aliasing artifacts when sampling below the signal's Nyquist rate.
+    
+    Args:
+        y_cont: Continuous-time signal values (numpy array).
+        t_cont: Corresponding time vector (numpy array, must be uniform).
+        f_samp: Target sampling frequency in Hz.
+        aaf_type: Filter type: "None", "Ideal", or "Butter".
+        scipy_signal: scipy.signal module (required for "Butter" type).
+    
+    Returns:
+        A tuple of (y_filtered, b, a, fs_cont) where:
+            - y_filtered: Filtered signal (same shape as y_cont)
+            - b, a: Filter coefficients (None for "None" and "Ideal" types)
+            - fs_cont: Continuous-time sampling frequency (None if no filter applied)
+    
+    Raises:
+        ImportError: If "Butter" is requested but scipy.signal is not available.
+    
+    Notes:
+        - Ideal filtering uses FFT and is exact but computationally intensive
+        - Butterworth uses a 5th-order IIR filter with cutoff at fs/2
+        - Cutoff is clamped to 0.49*fs_cont to avoid numerical issues
+    """
     if aaf_type == "Ideal":
         n = len(y_cont)
         dt = t_cont[1] - t_cont[0]
@@ -41,11 +137,35 @@ def apply_anti_alias_filter(
 
 
 def sample_signal(t_cont: np.ndarray, y_cont: np.ndarray, f_samp: float, duration: float) -> Tuple[np.ndarray, np.ndarray]:
-    """Sample a continuous-time proxy signal at a target sample rate."""
+    """Sample a continuous-time proxy signal at a target sample rate.
+    
+    Discretizes a continuous signal by selecting samples at uniform time intervals
+    determined by the sampling frequency. Uses linear interpolation to map continuous
+    values to discrete sample points.
+    
+    Args:
+        t_cont: Time vector of the continuous signal.
+        y_cont: Amplitude values of the continuous signal.
+        f_samp: Target sampling frequency in Hz.
+        duration: Total duration to sample in seconds.
+    
+    Returns:
+        A tuple of (t_samp, y_samp) where:
+            - t_samp: Time vector of sampled points (length = duration * f_samp)
+            - y_samp: Interpolated amplitude values at sampled times
+    
+    Raises:
+        ValueError: If duration or f_samp is non-positive.
+    
+    Notes:
+        - Ensures at least 2 samples to avoid empty arrays
+        - Uses numpy.interp for efficient linear interpolation
+    """
     num_samples = max(2, int(np.floor(duration * f_samp)))
     t_samp = np.linspace(0.0, (num_samples - 1) / f_samp, num_samples)
     y_samp = np.interp(t_samp, t_cont, y_cont)
     return t_samp, y_samp
+
 
 
 def quantize_signal(y: np.ndarray, bits: int) -> np.ndarray:

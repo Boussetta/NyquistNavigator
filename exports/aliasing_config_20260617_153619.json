@@ -1,0 +1,19 @@
+{
+  "a_harm": 0.7902298850574716,
+  "aaf_type": "None",
+  "audio_duration": 2.4755747126436787,
+  "audio_source": "Recon",
+  "audio_volume": 0.4414838035527693,
+  "bits": 16,
+  "db_on": false,
+  "f_harm": 44.70689655172414,
+  "f_samp": 492.8444543961791,
+  "f_sig": 36.26515151515154,
+  "learning_mode": "Off",
+  "n_harm": 7,
+  "phase": 4.658223589805559,
+  "preset": "Safe Nyquist",
+  "recon_type": "FFT",
+  "wave_type": "Sine",
+  "window_type": "None"
+}
