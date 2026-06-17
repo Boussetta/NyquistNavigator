@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from aliasing_atlas.app import SignalRegistry, AliasingToolbox
+from aliasing_atlas.signals import SignalRegistry
+from aliasing_atlas.app import AliasingToolbox
 
 def test_signal_calculation_sine():
     """Verify that the sine wave generation is mathematically correct."""
