@@ -52,8 +52,8 @@ class AliasingToolbox:
         self.num_continuous_points = 1000
         self._suspend_updates = False
 
-        self.fig = plt.figure(figsize=(14, 10))
-        plt.subplots_adjust(bottom=0.35, hspace=0.4, wspace=0.25)
+        self.fig = plt.figure(figsize=(14, 8.8))
+        plt.subplots_adjust(bottom=0.25, top=0.94, left=0.06, right=0.98, hspace=0.33, wspace=0.25)
 
         self.ax_time = self.fig.add_subplot(2, 2, 1)
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight="bold")
@@ -95,43 +95,44 @@ class AliasingToolbox:
         self.ax_time.legend(loc="upper right", fontsize="small")
         self.ax_freq.legend(loc="upper right", fontsize="small")
 
-        slider_color = "lightsteelblue"
+        slider_color = "#d9e7f3"
+        panel_color = "#f5f8fc"
 
-        self.cax_tabs = plt.axes([0.02, 0.05, 0.10, 0.18], facecolor="whitesmoke")
+        self.cax_tabs = plt.axes([0.02, 0.02, 0.10, 0.18], facecolor=panel_color)
         self.w_tabs = RadioButtons(self.cax_tabs, ("Signal", "Sampling", "Audio"))
-        self.cax_tabs.set_title("Navigation", fontsize=10, fontweight="bold")
+        self.cax_tabs.set_title("Sections", fontsize=9, fontweight="bold")
 
-        self.cax_f_sig = plt.axes([0.20, 0.25, 0.28, 0.02], facecolor=slider_color)
-        self.cax_f_samp = plt.axes([0.58, 0.25, 0.28, 0.02], facecolor=slider_color)
-        self.cax_preset = plt.axes([0.88, 0.18, 0.10, 0.16], facecolor=slider_color)
-        self.cax_learning = plt.axes([0.88, 0.03, 0.10, 0.13], facecolor=slider_color)
-        self.cax_reset = plt.axes([0.88, 0.24, 0.08, 0.04], facecolor=slider_color)
+        self.cax_f_sig = plt.axes([0.15, 0.20, 0.26, 0.016], facecolor=slider_color)
+        self.cax_f_samp = plt.axes([0.44, 0.20, 0.26, 0.016], facecolor=slider_color)
+        self.cax_preset = plt.axes([0.73, 0.14, 0.11, 0.09], facecolor=panel_color)
+        self.cax_learning = plt.axes([0.85, 0.14, 0.08, 0.09], facecolor=panel_color)
+        self.cax_reset = plt.axes([0.94, 0.19, 0.05, 0.032], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.cax_f_sig, "Base Freq (Hz)", 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_samp = Slider(self.cax_f_samp, "Sampling (Hz)", 5.0, self.f_samp_max, valinit=50.0)
         self.btn_reset = Button(self.cax_reset, "Reset All")
         self.w_preset = RadioButtons(self.cax_preset, tuple(preset_names()))
-        self.cax_preset.set_title("Presets", fontsize=10)
+        self.cax_preset.set_title("Presets", fontsize=9)
         self.w_learning = RadioButtons(self.cax_learning, ("Off", "On"))
-        self.cax_learning.set_title("Learning", fontsize=10)
+        self.cax_learning.set_title("Learn", fontsize=9)
 
-        self.cax_sig_box = plt.axes([0.15, 0.05, 0.65, 0.18], facecolor="whitesmoke", alpha=0.5)
-        self.cax_sig_box.set_title("Signal Components", fontsize=10, fontweight="bold")
+        self.cax_sig_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_sig_box.set_title("Signal Controls", fontsize=9, fontweight="bold")
         self.cax_sig_box.set_xticks([])
         self.cax_sig_box.set_yticks([])
 
-        self.cax_f_harm = plt.axes([0.25, 0.16, 0.20, 0.015], facecolor=slider_color)
-        self.cax_a_harm = plt.axes([0.25, 0.11, 0.20, 0.015], facecolor=slider_color)
-        self.cax_s_phase = plt.axes([0.55, 0.16, 0.20, 0.015], facecolor=slider_color)
-        self.cax_n_harm = plt.axes([0.55, 0.11, 0.20, 0.015], facecolor=slider_color)
-        self.cax_wave = plt.axes([0.82, 0.05, 0.12, 0.18], facecolor=slider_color)
+        self.cax_f_harm = plt.axes([0.20, 0.085, 0.20, 0.014], facecolor=slider_color)
+        self.cax_a_harm = plt.axes([0.20, 0.05, 0.20, 0.014], facecolor=slider_color)
+        self.cax_s_phase = plt.axes([0.46, 0.085, 0.20, 0.014], facecolor=slider_color)
+        self.cax_n_harm = plt.axes([0.46, 0.05, 0.20, 0.014], facecolor=slider_color)
+        self.cax_wave = plt.axes([0.72, 0.03, 0.12, 0.08], facecolor=panel_color)
 
         self.s_f_harm = Slider(self.cax_f_harm, "Harmonic (Hz)", 1.0, self.f_sig_max * 2, valinit=20.0)
         self.s_f_harm_amp = Slider(self.cax_a_harm, "Harmonic Amp", 0.0, 1.0, valinit=0.0)
         self.s_phase = Slider(self.cax_s_phase, "Phase", 0, 2 * np.pi, valinit=np.pi / 4)
         self.s_n_harm = Slider(self.cax_n_harm, "Fourier Harm.", 1, 50, valinit=1, valstep=1)
         self.w_wave = RadioButtons(self.cax_wave, tuple(SignalRegistry.get_signal_names()))
-        self.cax_wave.set_title("Waveform", fontsize=10)
+        self.cax_wave.set_title("Waveform", fontsize=9)
 
         self.tab_signal_axes = [
             self.cax_sig_box,
@@ -142,26 +143,26 @@ class AliasingToolbox:
             self.cax_wave,
         ]
 
-        self.cax_quant_box = plt.axes([0.15, 0.05, 0.35, 0.18], facecolor="whitesmoke", alpha=0.5)
-        self.cax_quant_box.set_title("Quantization", fontsize=10, fontweight="bold")
+        self.cax_quant_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_quant_box.set_title("Sampling Controls", fontsize=9, fontweight="bold")
         self.cax_quant_box.set_xticks([])
         self.cax_quant_box.set_yticks([])
 
-        self.cax_bits = plt.axes([0.22, 0.12, 0.25, 0.015], facecolor=slider_color)
-        self.cax_window = plt.axes([0.55, 0.05, 0.10, 0.18], facecolor=slider_color)
-        self.cax_aaf = plt.axes([0.68, 0.05, 0.10, 0.18], facecolor=slider_color)
-        self.cax_recon = plt.axes([0.82, 0.18, 0.12, 0.05], facecolor=slider_color)
-        self.cax_db_scale = plt.axes([0.82, 0.05, 0.12, 0.12], facecolor=slider_color)
+        self.cax_bits = plt.axes([0.20, 0.067, 0.22, 0.014], facecolor=slider_color)
+        self.cax_window = plt.axes([0.46, 0.03, 0.10, 0.08], facecolor=panel_color)
+        self.cax_aaf = plt.axes([0.58, 0.03, 0.10, 0.08], facecolor=panel_color)
+        self.cax_recon = plt.axes([0.70, 0.03, 0.10, 0.08], facecolor=panel_color)
+        self.cax_db_scale = plt.axes([0.82, 0.03, 0.12, 0.08], facecolor=panel_color)
 
         self.s_bits = Slider(self.cax_bits, "Bit Depth", 2, 16, valinit=16, valstep=1)
         self.w_radio = RadioButtons(self.cax_window, ("None", "Hamming", "Hann"))
-        self.cax_window.set_title("Window", fontsize=10)
+        self.cax_window.set_title("Window", fontsize=9)
         self.w_aaf = RadioButtons(self.cax_aaf, ("None", "Ideal", "Butter"))
-        self.cax_aaf.set_title("AAF", fontsize=10)
+        self.cax_aaf.set_title("AAF", fontsize=9)
         self.w_recon = RadioButtons(self.cax_recon, ("FFT", "FOH"))
-        self.cax_recon.set_title("Recon", fontsize=10)
+        self.cax_recon.set_title("Recon", fontsize=9)
         self.w_db = RadioButtons(self.cax_db_scale, ("Linear", "dB Scale"))
-        self.cax_db_scale.set_title("Scale", fontsize=10)
+        self.cax_db_scale.set_title("Scale", fontsize=9)
 
         self.tab_sampling_axes = [
             self.cax_quant_box,
@@ -172,22 +173,22 @@ class AliasingToolbox:
             self.cax_db_scale,
         ]
 
-        self.cax_audio_box = plt.axes([0.15, 0.05, 0.35, 0.18], facecolor="whitesmoke", alpha=0.5)
-        self.cax_audio_box.set_title("Playback Settings", fontsize=10, fontweight="bold")
+        self.cax_audio_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_audio_box.set_title("Audio & Export", fontsize=9, fontweight="bold")
         self.cax_audio_box.set_xticks([])
         self.cax_audio_box.set_yticks([])
 
-        self.cax_vol = plt.axes([0.25, 0.16, 0.20, 0.015], facecolor=slider_color)
-        self.cax_dur = plt.axes([0.25, 0.11, 0.20, 0.015], facecolor=slider_color)
-        self.cax_audio_src = plt.axes([0.55, 0.05, 0.15, 0.18], facecolor=slider_color)
-        self.cax_play_audio = plt.axes([0.75, 0.10, 0.12, 0.08], facecolor=slider_color)
-        self.cax_export_cfg = plt.axes([0.88, 0.10, 0.10, 0.05], facecolor=slider_color)
-        self.cax_export_wav = plt.axes([0.88, 0.04, 0.10, 0.05], facecolor=slider_color)
+        self.cax_vol = plt.axes([0.20, 0.085, 0.20, 0.014], facecolor=slider_color)
+        self.cax_dur = plt.axes([0.20, 0.05, 0.20, 0.014], facecolor=slider_color)
+        self.cax_audio_src = plt.axes([0.46, 0.03, 0.12, 0.08], facecolor=panel_color)
+        self.cax_play_audio = plt.axes([0.62, 0.05, 0.10, 0.04], facecolor=slider_color)
+        self.cax_export_cfg = plt.axes([0.75, 0.05, 0.10, 0.04], facecolor=slider_color)
+        self.cax_export_wav = plt.axes([0.87, 0.05, 0.10, 0.04], facecolor=slider_color)
 
         self.s_vol = Slider(self.cax_vol, "Audio Vol", 0.0, 1.0, valinit=0.5)
         self.s_dur = Slider(self.cax_dur, "Audio Dur (s)", 0.5, 3.0, valinit=1.5)
         self.w_audio_src = RadioButtons(self.cax_audio_src, ("Sampled", "Recon"))
-        self.cax_audio_src.set_title("Audio Source", fontsize=10)
+        self.cax_audio_src.set_title("Audio", fontsize=9)
         self.btn_play_audio = Button(self.cax_play_audio, "Play Audio")
         self.btn_export_cfg = Button(self.cax_export_cfg, "Export CFG")
         self.btn_export_wav = Button(self.cax_export_wav, "Export WAV")
@@ -235,7 +236,41 @@ class AliasingToolbox:
 
         self.status_text = self.fig.text(0.5, 0.01, "", ha="center", bbox=dict(facecolor="white", alpha=0.8))
         self.learning_text = self.fig.text(0.5, 0.98, "", ha="center", va="top", fontsize=9)
+
+        self._style_controls()
         self.update(None)
+
+    def _style_controls(self) -> None:
+        slider_widgets = [
+            self.s_f_sig,
+            self.s_f_samp,
+            self.s_f_harm,
+            self.s_f_harm_amp,
+            self.s_phase,
+            self.s_n_harm,
+            self.s_bits,
+            self.s_vol,
+            self.s_dur,
+        ]
+        for s in slider_widgets:
+            s.label.set_fontsize(8)
+            s.valtext.set_fontsize(8)
+            s.poly.set_facecolor("#4f83b8")
+
+        radio_widgets = [
+            self.w_tabs,
+            self.w_wave,
+            self.w_radio,
+            self.w_aaf,
+            self.w_recon,
+            self.w_db,
+            self.w_audio_src,
+            self.w_preset,
+            self.w_learning,
+        ]
+        for w in radio_widgets:
+            for lbl in w.labels:
+                lbl.set_fontsize(8)
 
     def _tab_callback(self, label: str) -> None:
         self._update_tab_visibility(label)
