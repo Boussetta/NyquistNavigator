@@ -256,6 +256,157 @@ class AliasingToolbox:
             int(self.s_n_harm.val),
         )
 
+    def _update_signal_labels(self, wave_type: str) -> None:
+        if wave_type in ["AM", "FM"]:
+            self.s_f_sig.label.set_text("Carrier Freq (Hz)")
+            self.s_f_harm.label.set_text("Message Freq (Hz)")
+            self.s_f_harm_amp.label.set_text("Mod Index (beta/m)")
+        else:
+            self.s_f_sig.label.set_text("Base Freq (Hz)")
+            self.s_f_harm.label.set_text("Harmonic (Hz)")
+            self.s_f_harm_amp.label.set_text("Harmonic Amp")
+
+    def _build_signal_data(
+        self,
+        f_sig: float,
+        f_harm: float,
+        a_harm: float,
+        phase: float,
+        f_samp: float,
+        bits: int,
+        window_type: str,
+        wave_type: str,
+        aaf_type: str,
+        n_harm: int,
+    ):
+        max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm, n_harm)
+        self.num_continuous_points = compute_continuous_points(max_freq)
+
+        duration = compute_duration(f_sig, cycles=3.0)
+        t_cont = np.linspace(0.0, duration, self.num_continuous_points)
+        y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase, n_harm)
+
+        y_filt_cont, b, a, fs_cont = apply_anti_alias_filter(
+            y_cont,
+            t_cont,
+            f_samp,
+            aaf_type,
+            scipy_signal=sp_signal,
+        )
+
+        sample_source = y_filt_cont if aaf_type != "None" else y_cont
+        t_samp, y_samp_ideal = sample_signal(t_cont, sample_source, f_samp, duration)
+        y_samp = quantize_signal(y_samp_ideal, bits)
+        quant_error = y_samp - y_samp_ideal
+
+        y_fft_input = apply_window(y_samp, window_type)
+        y_recon_fft = reconstruct_fft(y_fft_input, self.num_continuous_points)
+        y_recon_foh = reconstruct_foh(t_cont, t_samp, y_samp)
+
+        freqs, mags, phases = compute_spectrum(y_fft_input, f_samp)
+        phases[mags < 1e-3] = 0
+
+        return {
+            "max_freq": max_freq,
+            "duration": duration,
+            "t_cont": t_cont,
+            "y_cont": y_cont,
+            "y_filt_cont": y_filt_cont,
+            "t_samp": t_samp,
+            "y_samp": y_samp,
+            "quant_error": quant_error,
+            "y_recon_fft": y_recon_fft,
+            "y_recon_foh": y_recon_foh,
+            "freqs": freqs,
+            "mags": mags,
+            "phases": phases,
+            "aaf_b": b,
+            "aaf_a": a,
+            "aaf_fs_cont": fs_cont,
+        }
+
+    def _compute_display_magnitudes(self, mags: np.ndarray, db_on: bool, a_harm: float) -> np.ndarray:
+        if db_on:
+            display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
+            self.ax_freq.set_ylabel("Magnitude (dB)")
+            self.ax_freq.set_ylim(-105, 10)
+            return display_mags
+
+        self.ax_freq.set_ylabel("Magnitude")
+        self.ax_freq.set_ylim(0, max(1.5, (1 + a_harm) * 1.2))
+        return mags
+
+    def _update_time_domain_plots(
+        self,
+        t_cont: np.ndarray,
+        y_cont: np.ndarray,
+        y_filt_cont: np.ndarray,
+        t_samp: np.ndarray,
+        y_samp: np.ndarray,
+        y_recon_fft: np.ndarray,
+        y_recon_foh: np.ndarray,
+        recon_type: str,
+        duration: float,
+        a_harm: float,
+        aaf_type: str,
+    ) -> None:
+        self.line_cont.set_data(t_cont, y_cont)
+        self.line_filt.set_data(t_cont, y_filt_cont)
+        self.line_filt.set_visible(aaf_type != "None")
+
+        self.line_step.set_data(t_samp, y_samp)
+        self.dots_samp.set_offsets(np.c_[t_samp, y_samp])
+
+        self.line_fft.set_data(t_cont, y_recon_fft)
+        self.line_foh.set_data(t_cont, y_recon_foh)
+        self.line_fft.set_visible(recon_type == "FFT")
+        self.line_foh.set_visible(recon_type == "FOH")
+
+        self.ax_time.set_xlim(0, duration)
+        self.ax_time.set_ylim(-1.4 - a_harm, 1.4 + a_harm)
+
+    def _update_frequency_domain_plots(
+        self,
+        freqs: np.ndarray,
+        phases: np.ndarray,
+        display_mags: np.ndarray,
+        f_samp: float,
+        max_freq: float,
+        aliased: bool,
+        f_folded: float,
+    ) -> None:
+        self.line_spec.set_data(freqs, display_mags)
+        self.line_phase.set_data(freqs, phases)
+        self.nyquist_line.set_xdata([f_samp / 2, f_samp / 2])
+        self.true_freq_line.set_xdata([max_freq, max_freq])
+        self.alias_indicator.set_xdata([f_folded, f_folded])
+        self.alias_indicator.set_visible(aliased)
+
+        x_max = max(f_samp / 2 + 20, max_freq + 20)
+        self.ax_freq.set_xlim(0, x_max)
+        self.ax_phase.set_xlim(0, x_max)
+
+    def _update_quantization_plot(self, t_samp: np.ndarray, quant_error: np.ndarray, duration: float, bits: int) -> None:
+        levels = max(2, 2 ** bits)
+        self.line_quant.set_data(t_samp, quant_error)
+        self.ax_quant.set_xlim(0, duration)
+        self.ax_quant.set_ylim(-1.5 / (levels - 1), 1.5 / (levels - 1))
+
+    def _update_status(self, y_cont: np.ndarray, y_recon: np.ndarray, max_freq: float, aaf_type: str, aliased: bool) -> None:
+        rmse, snr = reconstruction_metrics(y_cont, y_recon)
+        msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
+
+        if aaf_type == "Butter" and sp_signal is None:
+            msg = "Butterworth filter requires scipy (pip install scipy)."
+
+        if aliased:
+            msg += " | WARNING: ALIASING DETECTED"
+            self.status_text.get_bbox_patch().set_facecolor("#ffcc80")
+        else:
+            self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
+
+        self.status_text.set_text(msg)
+
     def _update_aaf_response(self, aaf_type: str, b, a, fs_cont: Optional[float], f_samp: float, db_on: bool) -> None:
         if aaf_type == "Butter" and sp_signal is not None and b is not None and a is not None and fs_cont is not None:
             f_resp, h_resp = sp_signal.freqz(b, a, worN=512, fs=fs_cont)
@@ -359,101 +510,61 @@ class AliasingToolbox:
             self.fig.canvas.draw_idle()
             return
 
-        if wave_type in ["AM", "FM"]:
-            self.s_f_sig.label.set_text("Carrier Freq (Hz)")
-            self.s_f_harm.label.set_text("Message Freq (Hz)")
-            self.s_f_harm_amp.label.set_text("Mod Index (beta/m)")
-        else:
-            self.s_f_sig.label.set_text("Base Freq (Hz)")
-            self.s_f_harm.label.set_text("Harmonic (Hz)")
-            self.s_f_harm_amp.label.set_text("Harmonic Amp")
-
-        max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm, n_harm)
-        self.num_continuous_points = compute_continuous_points(max_freq)
-
-        duration = compute_duration(f_sig, cycles=3.0)
-        t_cont = np.linspace(0.0, duration, self.num_continuous_points)
-        y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase, n_harm)
-
-        y_filt_cont, b, a, fs_cont = apply_anti_alias_filter(
-            y_cont,
-            t_cont,
+        self._update_signal_labels(wave_type)
+        signal_data = self._build_signal_data(
+            f_sig,
+            f_harm,
+            a_harm,
+            phase,
             f_samp,
+            bits,
+            window_type,
+            wave_type,
             aaf_type,
-            scipy_signal=sp_signal,
+            n_harm,
         )
 
-        sample_source = y_filt_cont if aaf_type != "None" else y_cont
-        t_samp, y_samp_ideal = sample_signal(t_cont, sample_source, f_samp, duration)
-        y_samp = quantize_signal(y_samp_ideal, bits)
-        quant_error = y_samp - y_samp_ideal
+        max_freq = signal_data["max_freq"]
+        duration = signal_data["duration"]
+        t_cont = signal_data["t_cont"]
+        y_cont = signal_data["y_cont"]
+        y_filt_cont = signal_data["y_filt_cont"]
+        t_samp = signal_data["t_samp"]
+        y_samp = signal_data["y_samp"]
+        quant_error = signal_data["quant_error"]
+        y_recon_fft = signal_data["y_recon_fft"]
+        y_recon_foh = signal_data["y_recon_foh"]
+        freqs = signal_data["freqs"]
+        mags = signal_data["mags"]
+        phases = signal_data["phases"]
+        b = signal_data["aaf_b"]
+        a = signal_data["aaf_a"]
+        fs_cont = signal_data["aaf_fs_cont"]
 
-        y_fft_input = apply_window(y_samp, window_type)
-        y_recon_fft = reconstruct_fft(y_fft_input, self.num_continuous_points)
-        y_recon_foh = reconstruct_foh(t_cont, t_samp, y_samp)
         y_recon = y_recon_foh if recon_type == "FOH" else y_recon_fft
-
-        freqs, mags, phases = compute_spectrum(y_fft_input, f_samp)
-        phases[mags < 1e-3] = 0
-
-        if db_on:
-            display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
-            self.ax_freq.set_ylabel("Magnitude (dB)")
-            self.ax_freq.set_ylim(-105, 10)
-        else:
-            display_mags = mags
-            self.ax_freq.set_ylabel("Magnitude")
-            self.ax_freq.set_ylim(0, max(1.5, (1 + a_harm) * 1.2))
-
-        self.line_cont.set_data(t_cont, y_cont)
-        self.line_filt.set_data(t_cont, y_filt_cont)
-        self.line_filt.set_visible(aaf_type != "None")
-
-        self.line_step.set_data(t_samp, y_samp)
-        self.dots_samp.set_offsets(np.c_[t_samp, y_samp])
-
-        self.line_fft.set_data(t_cont, y_recon_fft)
-        self.line_foh.set_data(t_cont, y_recon_foh)
-        self.line_fft.set_visible(recon_type == "FFT")
-        self.line_foh.set_visible(recon_type == "FOH")
-
-        self.ax_time.set_xlim(0, duration)
-        self.ax_time.set_ylim(-1.4 - a_harm, 1.4 + a_harm)
-
-        self.line_spec.set_data(freqs, display_mags)
-        self.line_phase.set_data(freqs, phases)
-        self.nyquist_line.set_xdata([f_samp / 2, f_samp / 2])
-        self.true_freq_line.set_xdata([max_freq, max_freq])
 
         aliased = is_aliased(max_freq, f_samp)
         f_folded = folded_alias_frequency(max_freq, f_samp)
-        self.alias_indicator.set_xdata([f_folded, f_folded])
-        self.alias_indicator.set_visible(aliased)
 
-        x_max = max(f_samp / 2 + 20, max_freq + 20)
-        self.ax_freq.set_xlim(0, x_max)
-        self.ax_phase.set_xlim(0, x_max)
+        display_mags = self._compute_display_magnitudes(mags, db_on, a_harm)
+        self._update_time_domain_plots(
+            t_cont,
+            y_cont,
+            y_filt_cont,
+            t_samp,
+            y_samp,
+            y_recon_fft,
+            y_recon_foh,
+            recon_type,
+            duration,
+            a_harm,
+            aaf_type,
+        )
+        self._update_frequency_domain_plots(freqs, phases, display_mags, f_samp, max_freq, aliased, f_folded)
 
         self._update_aaf_response(aaf_type, b, a, fs_cont, f_samp, db_on)
-
-        levels = max(2, 2 ** bits)
-        self.line_quant.set_data(t_samp, quant_error)
-        self.ax_quant.set_xlim(0, duration)
-        self.ax_quant.set_ylim(-1.5 / (levels - 1), 1.5 / (levels - 1))
-
-        rmse, snr = reconstruction_metrics(y_cont, y_recon)
-        msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
-
-        if aaf_type == "Butter" and sp_signal is None:
-            msg = "Butterworth filter requires scipy (pip install scipy)."
-
-        if aliased:
-            msg += " | WARNING: ALIASING DETECTED"
-            self.status_text.get_bbox_patch().set_facecolor("#ffcc80")
-        else:
-            self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
-
-        self.status_text.set_text(msg)
+        self._update_quantization_plot(t_samp, quant_error, duration, bits)
+        self._update_status(y_cont, y_recon, max_freq, aaf_type, aliased)
         self.fig.canvas.draw_idle()
 
     def show(self) -> None:
