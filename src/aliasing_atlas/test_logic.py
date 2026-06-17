@@ -18,6 +18,20 @@ def test_signal_calculation_sine():
     expected = np.array([0.0, 1.0, 0.0, -1.0])
     np.testing.assert_allclose(y, expected, atol=1e-7)
 
+def test_signal_calculation_triangle():
+    """Verify triangle wave generation logic."""
+    t = np.array([0, 0.25, 0.5, 0.75, 1.0])
+    f_sig = 1.0
+    f_harm = 0.0
+    a_harm = 0.0
+    phase = 0.0
+    
+    y = SignalRegistry.create_signal('Triangle', t, f_sig, f_harm, a_harm, phase)
+    
+    # Triangle at 1Hz, phase 0: starts at -1, peaks at 1 (0.5s), back to -1 (1s)
+    expected = np.array([-1.0, 0.0, 1.0, 0.0, -1.0])
+    np.testing.assert_allclose(y, expected, atol=1e-7)
+
 def test_aliasing_detection_logic():
     """Simple check for frequency limits."""
     app = AliasingToolbox()

@@ -6,6 +6,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, RadioButtons, CheckButtons, Button
 from typing import Optional
+try:
+    from scipy import signal as sp_signal
+except ImportError:
+    sp_signal = None
 from .signals import SignalRegistry
 
 # Optional import for audio playback in Jupyter/Colab environments
@@ -35,23 +39,29 @@ class AliasingToolbox:
         self.last_f_samp: Optional[float] = None
 
         self.fig = plt.figure(figsize=(14, 10))
-        plt.subplots_adjust(bottom=0.28, hspace=0.7)
+        plt.subplots_adjust(bottom=0.28, hspace=0.8)
 
-        self.ax_time = self.fig.add_subplot(3, 1, 1)
+        self.ax_time = self.fig.add_subplot(4, 1, 1)
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight='bold')
         self.ax_time.grid(True, linestyle=':', alpha=0.6)
 
-        self.ax_freq = self.fig.add_subplot(3, 1, 2)
+        self.ax_freq = self.fig.add_subplot(4, 1, 2)
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
         self.ax_freq.set_ylabel("Magnitude")
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
         self.ax_freq.set_ylim(0, 1.5)
 
-        self.ax_quant = self.fig.add_subplot(3, 1, 3)
+        self.ax_phase = self.fig.add_subplot(4, 1, 3)
+        self.ax_phase.set_title("Frequency Domain: Phase Spectrum", fontweight='bold')
+        self.ax_phase.grid(True, linestyle=':', alpha=0.6)
+        self.ax_phase.set_ylabel("Phase (rad)")
+        self.ax_phase.set_ylim(-np.pi - 0.5, np.pi + 0.5)
+
+        self.ax_quant = self.fig.add_subplot(4, 1, 4)
         self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight='bold')
         self.ax_quant.grid(True, linestyle=':', alpha=0.6)
-        self.ax_quant.set_ylabel("Error")
+        self.ax_quant.set_ylabel("Error Amp")
 
         self.line_cont, = self.ax_time.plot([], [], 'b--', alpha=0.4, label='Ideal Continuous')
         self.line_filt, = self.ax_time.plot([], [], 'y-', alpha=0.7, linewidth=1.5, label='AAF Filtered', zorder=2)
@@ -59,6 +69,7 @@ class AliasingToolbox:
         self.line_fft, = self.ax_time.plot([], [], 'g-', linewidth=2, label='FFT Reconstruction')
         self.dots_samp = self.ax_time.scatter([], [], color='darkred', s=20, zorder=3)
         self.line_spec, = self.ax_freq.plot([], [], 'ro-', markersize=4, label='Sampled Peak')
+        self.line_phase, = self.ax_phase.plot([], [], 'go-', markersize=4, label='Phase')
         self.nyquist_line = self.ax_freq.axvline(0, color='orange', linestyle='--', label='Nyquist Limit')
         self.true_freq_line = self.ax_freq.axvline(0, color='blue', alpha=0.4, linestyle='--', label='Intended Freq (Ghost)')
         self.alias_indicator = self.ax_freq.axvline(0, color='magenta', alpha=0.6, linestyle=':', label='Predicted Alias')
@@ -73,10 +84,15 @@ class AliasingToolbox:
         self.ax_a_harm = plt.axes([0.12, 0.10, 0.32, 0.015], facecolor=slider_color)
         self.ax_phase = plt.axes([0.58, 0.18, 0.32, 0.015], facecolor=slider_color)
         self.ax_f_samp = plt.axes([0.58, 0.14, 0.32, 0.015], facecolor=slider_color)
-        self.ax_bits = plt.axes([0.58, 0.10, 0.32, 0.015], facecolor=slider_color)
+        self.ax_n_harm = plt.axes([0.58, 0.10, 0.32, 0.015], facecolor=slider_color)
+        
+        self.ax_bits = plt.axes([0.12, 0.06, 0.20, 0.015], facecolor=slider_color)
+        self.ax_vol = plt.axes([0.42, 0.06, 0.20, 0.015], facecolor=slider_color)
+        self.ax_dur = plt.axes([0.72, 0.06, 0.20, 0.015], facecolor=slider_color)
+
         self.ax_window = plt.axes([0.10, 0.02, 0.12, 0.06], facecolor=slider_color)
         self.ax_wave = plt.axes([0.25, 0.02, 0.12, 0.06], facecolor=slider_color)
-        self.ax_aaf = plt.axes([0.40, 0.02, 0.08, 0.06], facecolor=slider_color)
+        self.ax_aaf = plt.axes([0.40, 0.02, 0.09, 0.06], facecolor=slider_color)
         self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_play_audio = plt.axes([0.60, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_audio_src = plt.axes([0.72, 0.02, 0.12, 0.06], facecolor=slider_color)
@@ -87,13 +103,17 @@ class AliasingToolbox:
         self.s_f_harm_amp = Slider(self.ax_a_harm, 'Harmonic Amp', 0.0, 1.0, valinit=0.0)
         self.s_phase = Slider(self.ax_phase, 'Phase', 0, 2*np.pi, valinit=np.pi/4)
         self.s_f_samp = Slider(self.ax_f_samp, 'Sampling (Hz)', 5.0, self.f_samp_max, valinit=50.0)
+        self.s_n_harm = Slider(self.ax_n_harm, 'Fourier Harm.', 1, 50, valinit=1, valstep=1)
         self.s_bits = Slider(self.ax_bits, 'Bit Depth', 2, 16, valinit=16, valstep=1)
+        self.s_vol = Slider(self.ax_vol, 'Audio Vol', 0.0, 1.0, valinit=0.5)
+        self.s_dur = Slider(self.ax_dur, 'Audio Dur (s)', 0.5, 3.0, valinit=1.5)
 
         self.w_radio = RadioButtons(self.ax_window, ('None', 'Hamming', 'Hann'))
         self.ax_window.set_title("Window", fontsize=10)
         self.w_wave = RadioButtons(self.ax_wave, tuple(SignalRegistry.get_signal_names()))
         self.ax_wave.set_title("Waveform", fontsize=10)
-        self.w_aaf = CheckButtons(self.ax_aaf, ('AAF On',), [False])
+        self.w_aaf = RadioButtons(self.ax_aaf, ('None', 'Ideal', 'Butter'))
+        self.ax_aaf.set_title("AAF Filter", fontsize=10)
         self.w_db = CheckButtons(self.ax_db_scale, ('dB Scale',), [False])
         self.btn_play_audio = Button(self.ax_play_audio, 'Play Audio')
         self.w_audio_src = RadioButtons(self.ax_audio_src, ('Sampled', 'Recon'))
@@ -106,6 +126,9 @@ class AliasingToolbox:
         self.s_phase.on_changed(self.update)
         self.s_f_samp.on_changed(self.update)
         self.s_bits.on_changed(self.update)
+        self.s_n_harm.on_changed(self.update)
+        self.s_vol.on_changed(self.update)
+        self.s_dur.on_changed(self.update)
         self.w_radio.on_clicked(self.update)
         self.w_wave.on_clicked(self.update)
         self.w_aaf.on_clicked(self.update)
@@ -125,19 +148,23 @@ class AliasingToolbox:
         self.s_phase.reset()
         self.s_f_samp.reset()
         self.s_bits.reset()
+        self.s_n_harm.reset()
+        self.s_vol.reset()
+        self.s_dur.reset()
         # Reset radio buttons (this triggers 'update' automatically)
         self.w_radio.set_active(0)
         self.w_wave.set_active(0)
+        self.w_aaf.set_active(0)
         self.w_audio_src.set_active(0)
         # Reset checkboxes only if they are currently enabled
-        if self.w_aaf.get_status()[0]: self.w_aaf.set_active(0)
         if self.w_db.get_status()[0]: self.w_db.set_active(0)
         self.fig.canvas.draw_idle()
 
     def _play_audio_callback(self, event) -> None:
         """Callback for the Play Audio button."""
         PLAYBACK_FS = 44100
-        DURATION = 1.5
+        DURATION = self.s_dur.val
+        VOLUME = self.s_vol.val
 
         # Fetch current parameters
         f_sig = self.s_f_sig.val
@@ -146,8 +173,9 @@ class AliasingToolbox:
         phase = self.s_phase.val
         f_samp = self.s_f_samp.val
         bits = int(self.s_bits.val)
+        n_harm = int(self.s_n_harm.val)
         wave_type = self.w_wave.value_selected
-        aaf_on = self.w_aaf.get_status()[0]
+        aaf_type = self.w_aaf.value_selected
         audio_src = self.w_audio_src.value_selected
 
         if f_samp <= 0:
@@ -163,16 +191,25 @@ class AliasingToolbox:
         num_p = int(DURATION * PLAYBACK_FS)
         t_playback = np.linspace(0, DURATION, num_p)
         
-        if aaf_on:
-            # High-res AAF filtering before sampling
-            y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase)
+        y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase, n_harm)
+
+        if aaf_type == 'Ideal':
             yf = np.fft.fft(y_full)
             xf = np.fft.fftfreq(num_p, 1/PLAYBACK_FS)
             yf[np.abs(xf) > f_samp / 2] = 0
             y_audio_base = np.fft.ifft(yf).real
             y_s = np.interp(t_s, t_playback, y_audio_base)
+        elif aaf_type == 'Butter':
+            if sp_signal is not None:
+                nyq_limit = f_samp / 2
+                # Design a 5th order Butterworth filter
+                b, a = sp_signal.butter(5, nyq_limit, btype='low', fs=PLAYBACK_FS)
+                y_audio_base = sp_signal.lfilter(b, a, y_full)
+                y_s = np.interp(t_s, t_playback, y_audio_base)
+            else:
+                y_s = SignalRegistry.create_signal(wave_type, t_s, f_sig, f_harm, a_harm, phase, n_harm)
         else:
-            y_s = SignalRegistry.create_signal(wave_type, t_s, f_sig, f_harm, a_harm, phase)
+            y_s = SignalRegistry.create_signal(wave_type, t_s, f_sig, f_harm, a_harm, phase, n_harm)
         
         # Apply the current bit-depth quantization
         levels = 2**bits
@@ -195,7 +232,7 @@ class AliasingToolbox:
             audio_data = np.fft.ifft(Y_p).real * (num_p / num_s)
 
         max_v = np.max(np.abs(audio_data))
-        audio_data = audio_data / max_v if max_v > 0 else audio_data
+        audio_data = (audio_data / max_v if max_v > 0 else audio_data) * VOLUME
 
         # 1. Desktop Playback (Highest priority for local use)
         if sd is not None:
@@ -237,13 +274,14 @@ class AliasingToolbox:
         bits = int(self.s_bits.val)
         window_type = self.w_radio.value_selected
         wave_type = self.w_wave.value_selected
-        aaf_on = self.w_aaf.get_status()[0]
+        aaf_type = self.w_aaf.value_selected
         db_on = self.w_db.get_status()[0]
-        return f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_on, db_on
+        n_harm = int(self.s_n_harm.val)
+        return f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_type, db_on, n_harm
 
     def update(self, val: Optional[float]) -> None:
         params = self._get_params()
-        f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_on, db_on = params
+        f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_type, db_on, n_harm = params
         if f_sig <= 0 or f_samp <= 0: return
 
         if wave_type in ['AM', 'FM']:
@@ -255,17 +293,30 @@ class AliasingToolbox:
             self.s_f_harm.label.set_text('Harmonic (Hz)')
             self.s_f_harm_amp.label.set_text('Harmonic Amp')
 
+        max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm, n_harm)
+        
+        # Dynamic Plot Adjustment: Ensure high resolution for high frequencies
+        self.num_continuous_points = max(1000, int(20 * max_freq))
+
         duration = 3 / f_sig
         t_cont = np.linspace(0, duration, self.num_continuous_points)
-        y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase)
+        y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase, n_harm)
 
-        if aaf_on:
+        if aaf_type == 'Ideal':
             n = len(t_cont)
             dt = t_cont[1] - t_cont[0]
             yf = np.fft.fft(y_cont)
             xf = np.fft.fftfreq(n, dt)
             yf[np.abs(xf) > f_samp / 2] = 0
             y_filt_cont = np.fft.ifft(yf).real
+        elif aaf_type == 'Butter':
+            if sp_signal is not None:
+                nyq_limit = f_samp / 2
+                # Adaptive fs for the digital filter design
+                b, a = sp_signal.butter(5, nyq_limit, btype='low', fs=1/(t_cont[1]-t_cont[0]))
+                y_filt_cont = sp_signal.lfilter(b, a, y_cont)
+            else:
+                y_filt_cont = y_cont
         else:
             y_filt_cont = y_cont
 
@@ -273,13 +324,13 @@ class AliasingToolbox:
         if num_samples < 2: num_samples = 2
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
 
-        if aaf_on:
+        if aaf_type != 'None':
             # Sample the filtered 'analog' signal
             y_samp_ideal = np.interp(t_samp, t_cont, y_filt_cont)
             self.line_filt.set_visible(True)
         else:
             # Sample the raw signal
-            y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase)
+            y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase, n_harm)
             self.line_filt.set_visible(False)
 
         levels = 2**bits
@@ -304,6 +355,7 @@ class AliasingToolbox:
 
         freqs = np.fft.rfftfreq(N_samp, 1/f_samp)
         mags = np.abs(np.fft.rfft(y_samp_fft_input)) / N_samp
+        phases = np.angle(np.fft.rfft(y_samp_fft_input))
 
         if db_on:
             display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
@@ -322,14 +374,17 @@ class AliasingToolbox:
         self.ax_time.set_xlim(0, duration)
         self.ax_time.set_ylim(-1.4 - a_harm, 1.4 + a_harm)
 
+        # Mask phase noise for low magnitudes to improve pedagogical clarity
+        phases[mags < 1e-3] = 0
+        self.line_phase.set_data(freqs, phases)
+        self.ax_phase.set_xlim(0, max(f_samp/2 + 20, max_freq + 20))
+
         self.line_quant.set_data(t_samp, quant_error)
         self.ax_quant.set_xlim(0, duration)
         self.ax_quant.set_ylim(-1.5/(levels-1 if levels>1 else 1), 1.5/(levels-1 if levels>1 else 1))
-
         self.line_spec.set_data(freqs, display_mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
         
-        max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm)
         is_aliased = f_samp < 2 * max_freq
         self.true_freq_line.set_xdata([max_freq, max_freq])
         
@@ -347,6 +402,10 @@ class AliasingToolbox:
         # because of their infinite harmonics, but we focus on the modeled components here.
         
         msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
+        
+        if aaf_type == 'Butter' and sp_signal is None:
+            msg = "Butterworth filter requires 'scipy' (pip install scipy)"
+
         if is_aliased:
             msg += " | WARNING: ALIASING DETECTED"
             self.status_text.get_bbox_patch().set_facecolor('#ffcc80') # Soft Orange
