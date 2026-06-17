@@ -87,6 +87,21 @@ class FMWave(Signal):
         base = np.sin(2 * np.pi * self.f_sig * self.t + self.phase + self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t))
         return base
 
+class ChirpWave(Signal):
+    """Linear chirp sweeping from f_sig to f_harm across the visible duration."""
+    def calculate(self) -> np.ndarray:
+        t = np.asarray(self.t)
+        if t.size < 2:
+            return np.sin(2 * np.pi * self.f_sig * t + self.phase)
+
+        tau = t - t[0]
+        duration = max(float(tau[-1]), 1e-9)
+        f0 = max(float(self.f_sig), 0.0)
+        f1 = max(float(self.f_harm), f0)
+        k = (f1 - f0) / duration
+        phase = 2 * np.pi * (f0 * tau + 0.5 * k * tau**2) + self.phase
+        return np.sin(phase)
+
 class SignalRegistry:
     """A registry for creating different types of signals."""
     _signals: Dict[str, Type[Signal]] = {}
@@ -120,6 +135,8 @@ class SignalRegistry:
         if wave_type == 'FM':
             # Carson's Rule approximation for significant bandwidth
             return f_sig + (a_harm + 1) * f_harm if a_harm > 0 else f_sig
+        if wave_type == 'Chirp':
+            return max(f_sig, f_harm)
         
         # For Fourier-based waves, the max freq is f_sig * highest_harmonic_order
         multiplier = (2 * n_harm - 1) if wave_type in ['Square', 'Triangle'] else n_harm
@@ -132,3 +149,4 @@ SignalRegistry.register_signal('Sawtooth', SawtoothWave)
 SignalRegistry.register_signal('Triangle', TriangleWave)
 SignalRegistry.register_signal('AM', AMWave)
 SignalRegistry.register_signal('FM', FMWave)
+SignalRegistry.register_signal('Chirp', ChirpWave)

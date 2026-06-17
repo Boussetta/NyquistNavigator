@@ -22,6 +22,7 @@ from .dsp import (
 )
 from .signals import SignalRegistry
 from .presets import get_preset, preset_names
+from .learning import build_learning_hint
 
 try:
     from scipy import signal as sp_signal
@@ -102,6 +103,7 @@ class AliasingToolbox:
         self.cax_f_sig = plt.axes([0.20, 0.25, 0.28, 0.02], facecolor=slider_color)
         self.cax_f_samp = plt.axes([0.58, 0.25, 0.28, 0.02], facecolor=slider_color)
         self.cax_preset = plt.axes([0.88, 0.18, 0.10, 0.16], facecolor=slider_color)
+        self.cax_learning = plt.axes([0.88, 0.03, 0.10, 0.13], facecolor=slider_color)
         self.cax_reset = plt.axes([0.88, 0.24, 0.08, 0.04], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.cax_f_sig, "Base Freq (Hz)", 1.0, self.f_sig_max, valinit=10.0)
@@ -109,6 +111,8 @@ class AliasingToolbox:
         self.btn_reset = Button(self.cax_reset, "Reset All")
         self.w_preset = RadioButtons(self.cax_preset, tuple(preset_names()))
         self.cax_preset.set_title("Presets", fontsize=10)
+        self.w_learning = RadioButtons(self.cax_learning, ("Off", "On"))
+        self.cax_learning.set_title("Learning", fontsize=10)
 
         self.cax_sig_box = plt.axes([0.15, 0.05, 0.65, 0.18], facecolor="whitesmoke", alpha=0.5)
         self.cax_sig_box.set_title("Signal Components", fontsize=10, fontweight="bold")
@@ -209,11 +213,13 @@ class AliasingToolbox:
         self.w_recon.on_clicked(self.update)
         self.w_db.on_clicked(self.update)
         self.w_audio_src.on_clicked(self.update)
+        self.w_learning.on_clicked(self.update)
         self.w_preset.on_clicked(self._preset_callback)
         self.btn_play_audio.on_clicked(self._play_audio_callback)
         self.btn_reset.on_clicked(self._reset_callback)
 
         self.status_text = self.fig.text(0.5, 0.01, "", ha="center", bbox=dict(facecolor="white", alpha=0.8))
+        self.learning_text = self.fig.text(0.5, 0.98, "", ha="center", va="top", fontsize=9)
         self.update(None)
 
     def _tab_callback(self, label: str) -> None:
@@ -244,6 +250,7 @@ class AliasingToolbox:
         self.w_recon.set_active(0)
         self.w_audio_src.set_active(0)
         self.w_db.set_active(0)
+        self.w_learning.set_active(0)
         self.fig.canvas.draw_idle()
 
     def _set_radio_value(self, widget: RadioButtons, target_label: str) -> None:
@@ -437,6 +444,24 @@ class AliasingToolbox:
 
         self.status_text.set_text(msg)
 
+    def _update_learning_hint(
+        self,
+        enabled: bool,
+        wave_type: str,
+        aliased: bool,
+        max_freq: float,
+        f_samp: float,
+        recon_type: str,
+        aaf_type: str,
+        bits: int,
+    ) -> None:
+        if not enabled:
+            self.learning_text.set_text("")
+            return
+
+        hint = build_learning_hint(wave_type, aliased, max_freq, f_samp, recon_type, aaf_type, bits)
+        self.learning_text.set_text(hint)
+
     def _update_aaf_response(self, aaf_type: str, b, a, fs_cont: Optional[float], f_samp: float, db_on: bool) -> None:
         if aaf_type == "Butter" and sp_signal is not None and b is not None and a is not None and fs_cont is not None:
             f_resp, h_resp = sp_signal.freqz(b, a, worN=512, fs=fs_cont)
@@ -536,6 +561,7 @@ class AliasingToolbox:
             db_on,
             n_harm,
         ) = self._get_params()
+        learning_on = self.w_learning.value_selected == "On"
 
         if f_sig <= 0 or f_samp <= 0:
             self.status_text.set_text("Signal and sampling frequencies must be greater than 0.")
@@ -598,6 +624,7 @@ class AliasingToolbox:
         self._update_aaf_response(aaf_type, b, a, fs_cont, f_samp, db_on)
         self._update_quantization_plot(t_samp, quant_error, duration, bits)
         self._update_status(y_cont, y_recon, max_freq, aaf_type, aliased)
+        self._update_learning_hint(learning_on, wave_type, aliased, max_freq, f_samp, recon_type, aaf_type, bits)
         self.fig.canvas.draw_idle()
 
     def show(self) -> None:
