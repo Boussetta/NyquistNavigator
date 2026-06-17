@@ -21,6 +21,7 @@ from .dsp import (
     sample_signal,
 )
 from .signals import SignalRegistry
+from .presets import get_preset, preset_names
 
 try:
     from scipy import signal as sp_signal
@@ -47,6 +48,7 @@ class AliasingToolbox:
         self.f_sig_max = 50.0
         self.f_samp_max = 1500.0
         self.num_continuous_points = 1000
+        self._suspend_updates = False
 
         self.fig = plt.figure(figsize=(14, 10))
         plt.subplots_adjust(bottom=0.35, hspace=0.4, wspace=0.25)
@@ -99,11 +101,14 @@ class AliasingToolbox:
 
         self.cax_f_sig = plt.axes([0.20, 0.25, 0.28, 0.02], facecolor=slider_color)
         self.cax_f_samp = plt.axes([0.58, 0.25, 0.28, 0.02], facecolor=slider_color)
+        self.cax_preset = plt.axes([0.88, 0.18, 0.10, 0.16], facecolor=slider_color)
         self.cax_reset = plt.axes([0.88, 0.24, 0.08, 0.04], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.cax_f_sig, "Base Freq (Hz)", 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_samp = Slider(self.cax_f_samp, "Sampling (Hz)", 5.0, self.f_samp_max, valinit=50.0)
         self.btn_reset = Button(self.cax_reset, "Reset All")
+        self.w_preset = RadioButtons(self.cax_preset, tuple(preset_names()))
+        self.cax_preset.set_title("Presets", fontsize=10)
 
         self.cax_sig_box = plt.axes([0.15, 0.05, 0.65, 0.18], facecolor="whitesmoke", alpha=0.5)
         self.cax_sig_box.set_title("Signal Components", fontsize=10, fontweight="bold")
@@ -204,6 +209,7 @@ class AliasingToolbox:
         self.w_recon.on_clicked(self.update)
         self.w_db.on_clicked(self.update)
         self.w_audio_src.on_clicked(self.update)
+        self.w_preset.on_clicked(self._preset_callback)
         self.btn_play_audio.on_clicked(self._play_audio_callback)
         self.btn_reset.on_clicked(self._reset_callback)
 
@@ -239,6 +245,30 @@ class AliasingToolbox:
         self.w_audio_src.set_active(0)
         self.w_db.set_active(0)
         self.fig.canvas.draw_idle()
+
+    def _set_radio_value(self, widget: RadioButtons, target_label: str) -> None:
+        labels = [txt.get_text() for txt in widget.labels]
+        if target_label in labels:
+            widget.set_active(labels.index(target_label))
+
+    def _preset_callback(self, label: str) -> None:
+        preset = get_preset(label)
+
+        self._suspend_updates = True
+        self.s_f_sig.set_val(preset.f_sig)
+        self.s_f_samp.set_val(preset.f_samp)
+        self.s_f_harm.set_val(preset.f_harm)
+        self.s_f_harm_amp.set_val(preset.a_harm)
+        self.s_phase.set_val(preset.phase)
+        self.s_n_harm.set_val(preset.n_harm)
+        self.s_bits.set_val(preset.bits)
+        self._set_radio_value(self.w_wave, preset.wave_type)
+        self._set_radio_value(self.w_aaf, preset.aaf_type)
+        self._set_radio_value(self.w_recon, preset.recon_type)
+        self._set_radio_value(self.w_radio, preset.window_type)
+        self._suspend_updates = False
+
+        self.update(None)
 
     def _get_params(self):
         return (
@@ -489,6 +519,9 @@ class AliasingToolbox:
         self.fig.canvas.draw_idle()
 
     def update(self, val: Optional[float]) -> None:
+        if self._suspend_updates:
+            return
+
         (
             f_sig,
             f_harm,

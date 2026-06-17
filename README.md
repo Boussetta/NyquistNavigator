@@ -58,6 +58,7 @@ pytest
 ## Features
 
 -   **Interactive Input:** Easily specify signal frequency and sampling rate via sliders.
+-   **Preset Scenarios:** Instantly load curated cases like Safe Nyquist, Near Nyquist, Aliasing, and AM Sidebands.
 -   **Dynamic Plotting:** The plot automatically adjusts its time duration to always show 3 full cycles of the signal.
 -   **Zero-Order Hold Visualization:** Clearly demonstrates discrete samples held as constant steps.
 -   **Bit-Depth Quantization:** Explore the effects of reduced bit-depth and view the error residuals.
