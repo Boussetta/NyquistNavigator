@@ -158,6 +158,7 @@ class AliasingToolbox:
         self.ax_db_scale = plt.axes([0.50, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_play_audio = plt.axes([0.60, 0.02, 0.08, 0.06], facecolor=slider_color)
         self.ax_audio_src = plt.axes([0.72, 0.02, 0.12, 0.06], facecolor=slider_color)
+        self.ax_reset = plt.axes([0.86, 0.02, 0.08, 0.06], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.ax_f_sig, 'Base Freq (Hz)', 1.0, self.f_sig_max, valinit=10.0)
         self.s_f_harm = Slider(self.ax_f_harm, 'Harmonic (Hz)', 1.0, self.f_sig_max * 2, valinit=20.0)
@@ -175,6 +176,7 @@ class AliasingToolbox:
         self.btn_play_audio = Button(self.ax_play_audio, 'Play Audio')
         self.w_audio_src = RadioButtons(self.ax_audio_src, ('Sampled', 'Recon'))
         self.ax_audio_src.set_title("Audio Source", fontsize=10)
+        self.btn_reset = Button(self.ax_reset, 'Reset All')
 
         self.s_f_sig.on_changed(self.update)
         self.s_f_harm.on_changed(self.update)
@@ -188,9 +190,27 @@ class AliasingToolbox:
         self.w_db.on_clicked(self.update)
         self.w_audio_src.on_clicked(self.update)
         self.btn_play_audio.on_clicked(self._play_audio_callback)
+        self.btn_reset.on_clicked(self._reset_callback)
 
         self.status_text = self.fig.text(0.5, 0.01, '', ha='center', bbox=dict(facecolor='white', alpha=0.8))
         self.update(None)
+
+    def _reset_callback(self, event) -> None:
+        """Resets all widgets to their initial values."""
+        self.s_f_sig.reset()
+        self.s_f_harm.reset()
+        self.s_f_harm_amp.reset()
+        self.s_phase.reset()
+        self.s_f_samp.reset()
+        self.s_bits.reset()
+        # Reset radio buttons (this triggers 'update' automatically)
+        self.w_radio.set_active(0)
+        self.w_wave.set_active(0)
+        self.w_audio_src.set_active(0)
+        # Reset checkboxes only if they are currently enabled
+        if self.w_aaf.get_status()[0]: self.w_aaf.set_active(0)
+        if self.w_db.get_status()[0]: self.w_db.set_active(0)
+        self.fig.canvas.draw_idle()
 
     def _play_audio_callback(self, event) -> None:
         """Callback for the Play Audio button."""
@@ -378,7 +398,7 @@ class AliasingToolbox:
         else:
             display_mags = mags
             self.ax_freq.set_ylabel("Magnitude")
-            self.ax_freq.set_ylim(0, 1.5)
+            self.ax_freq.set_ylim(0, max(1.5, (1 + a_harm) * 1.2))
 
         self.line_cont.set_data(t_cont, y_cont)
         self.line_filt.set_data(t_cont, y_filt_cont)
@@ -430,9 +450,9 @@ class AliasingToolbox:
         msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
         if is_aliased:
             msg += " | WARNING: ALIASING DETECTED"
-            self.status_text.get_bbox_patch().set_facecolor('orange')
+            self.status_text.get_bbox_patch().set_facecolor('#ffcc80') # Soft Orange
         else:
-            self.status_text.get_bbox_patch().set_facecolor('lightgreen')
+            self.status_text.get_bbox_patch().set_facecolor('#c8e6c9') # Soft Green
         
         self.status_text.set_text(msg)
         self.fig.canvas.draw_idle()
