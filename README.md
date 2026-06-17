@@ -1,6 +1,6 @@
 # AliasingAtlas
 
-AliasingAtlas is an interactive educational tool designed to visualize the fundamental principles of the Nyquist-Shannon sampling theorem. By simulating the sampling and reconstruction of continuous sine waves, it provides an intuitive platform for exploring signal fidelity, zero-order hold distortion, and FFT-based (sinc) interpolation.
+AliasingAtlas is an interactive educational tool designed to visualize the fundamental principles of the Nyquist-Shannon sampling theorem. By simulating the sampling, quantization, and reconstruction of various waveforms, it provides an intuitive platform for exploring signal fidelity, aliasing, and digital signal processing (DSP) concepts.
 
 ## Workspace Structure
 

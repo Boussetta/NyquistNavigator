@@ -38,13 +38,16 @@ class AliasingToolbox:
         self.last_y_samp: Optional[np.ndarray] = None
         self.last_f_samp: Optional[float] = None
 
+        # Figure setup with a 2x2 grid for time and frequency domains
         self.fig = plt.figure(figsize=(14, 10))
         plt.subplots_adjust(bottom=0.35, hspace=0.4, wspace=0.25)
 
+        # Subplot 1: Time Domain (Continuous vs Sampled vs Recon)
         self.ax_time = self.fig.add_subplot(2, 2, 1)
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight='bold')
         self.ax_time.grid(True, linestyle=':', alpha=0.6)
 
+        # Subplot 2: Magnitude Spectrum (FFT of sampled signal)
         self.ax_freq = self.fig.add_subplot(2, 2, 2)
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight='bold')
         self.ax_freq.grid(True, linestyle=':', alpha=0.6)
@@ -52,17 +55,20 @@ class AliasingToolbox:
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
         self.ax_freq.set_ylim(0, 1.5)
 
+        # Subplot 3: Phase Spectrum
         self.ax_phase = self.fig.add_subplot(2, 2, 3)
         self.ax_phase.set_title("Frequency Domain: Phase Spectrum", fontweight='bold')
         self.ax_phase.grid(True, linestyle=':', alpha=0.6)
         self.ax_phase.set_ylabel("Phase (rad)")
         self.ax_phase.set_ylim(-np.pi - 0.5, np.pi + 0.5)
 
+        # Subplot 4: Quantization Error
         self.ax_quant = self.fig.add_subplot(2, 2, 4)
         self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight='bold')
         self.ax_quant.grid(True, linestyle=':', alpha=0.6)
         self.ax_quant.set_ylabel("Error Amp")
 
+        # Data line initializations
         self.line_cont, = self.ax_time.plot([], [], 'b--', alpha=0.4, label='Ideal Continuous')
         self.line_filt, = self.ax_time.plot([], [], 'y-', alpha=0.7, linewidth=1.5, label='AAF Filtered', zorder=2)
         self.line_step, = self.ax_time.step([], [], where='post', color='crimson', alpha=0.6, label='Zero-Order Hold')
@@ -80,12 +86,12 @@ class AliasingToolbox:
 
         slider_color = 'lightsteelblue'
 
-        # Tab Selection Logic
+        # Navigation Tab Selection Logic
         self.cax_tabs = plt.axes([0.02, 0.05, 0.10, 0.18], facecolor='whitesmoke')
         self.w_tabs = RadioButtons(self.cax_tabs, ('Signal', 'Sampling', 'Audio'))
         self.cax_tabs.set_title("Navigation", fontsize=10, fontweight='bold')
 
-        # --- Persistent Core Controls (Always Visible) ---
+        # --- Persistent Core Controls (Visible across all tabs) ---
         self.cax_f_sig = plt.axes([0.20, 0.25, 0.28, 0.02], facecolor=slider_color)
         self.cax_f_samp = plt.axes([0.58, 0.25, 0.28, 0.02], facecolor=slider_color)
         self.cax_reset = plt.axes([0.88, 0.24, 0.08, 0.04], facecolor=slider_color)
@@ -124,6 +130,7 @@ class AliasingToolbox:
         self.cax_aaf = plt.axes([0.68, 0.05, 0.10, 0.18], facecolor=slider_color)
         self.cax_db_scale = plt.axes([0.82, 0.05, 0.12, 0.12], facecolor=slider_color)
 
+        # Windowing and Scale options
         self.s_bits = Slider(self.cax_bits, 'Bit Depth', 2, 16, valinit=16, valstep=1)
         self.w_radio = RadioButtons(self.cax_window, ('None', 'Hamming', 'Hann'))
         self.cax_window.set_title("Window", fontsize=10)
@@ -254,13 +261,16 @@ class AliasingToolbox:
         
         y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase, n_harm)
 
+        # Anti-aliasing filtering for audio playback
         if aaf_type == 'Ideal':
+            # Ideal sinc-like brick-wall filtering
             yf = np.fft.fft(y_full)
             xf = np.fft.fftfreq(num_p, 1/PLAYBACK_FS)
             yf[np.abs(xf) > f_samp / 2] = 0
             y_audio_base = np.fft.ifft(yf).real
             y_s = np.interp(t_s, t_playback, y_audio_base)
         elif aaf_type == 'Butter':
+            # Realistic analog filter roll-off using Scipy
             if sp_signal is not None:
                 nyq_limit = f_samp / 2
                 # Design a 5th order Butterworth filter
@@ -272,7 +282,7 @@ class AliasingToolbox:
         else:
             y_s = SignalRegistry.create_signal(wave_type, t_s, f_sig, f_harm, a_harm, phase, n_harm)
         
-        # Apply the current bit-depth quantization
+        # Simulation of Quantization Effects on Audio
         levels = 2**bits
         divisor = (levels - 1) if (levels - 1) > 0 else 1
         y_s_q = np.round((y_s + 1) / 2 * divisor) / divisor * 2 - 1
@@ -292,10 +302,11 @@ class AliasingToolbox:
             Y_p[num_p - (num_s // 2):] = Y_s[num_s - (num_s // 2):]
             audio_data = np.fft.ifft(Y_p).real * (num_p / num_s)
 
+        # Normalize and apply volume
         max_v = np.max(np.abs(audio_data))
         audio_data = (audio_data / max_v if max_v > 0 else audio_data) * VOLUME
 
-        # 1. Desktop Playback (Highest priority for local use)
+        # Playback routing (Sounddevice for Desktop, IPython for Notebooks)
         if sd is not None:
             try:
                 # sounddevice works locally (desktop/notebook) without HTML serialization issues
@@ -306,7 +317,6 @@ class AliasingToolbox:
             except Exception as e:
                 print(f"Sounddevice failed: {e}")
 
-        # 2. Notebook Playback (Fallback for Colab/Jupyter widgets)
         if Audio is not None and display is not None:
             # Ensure float32 for maximum compatibility across browser audio engines
             audio_data_32 = audio_data.astype(np.float32)
@@ -341,10 +351,12 @@ class AliasingToolbox:
         return f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_type, db_on, n_harm
 
     def update(self, val: Optional[float]) -> None:
+        """Core logic triggered on any UI change to refresh all plots."""
         params = self._get_params()
         f_sig, f_harm, a_harm, phase, f_samp, bits, window_type, wave_type, aaf_type, db_on, n_harm = params
         if f_sig <= 0 or f_samp <= 0: return
 
+        # Dynamic Labeling based on Modulation type
         if wave_type in ['AM', 'FM']:
             self.s_f_sig.label.set_text('Carrier Freq (Hz)')
             self.s_f_harm.label.set_text('Message Freq (Hz)')
@@ -363,7 +375,9 @@ class AliasingToolbox:
         t_cont = np.linspace(0, duration, self.num_continuous_points)
         y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase, n_harm)
 
+        # Anti-Aliasing Filter (AAF) Simulation
         if aaf_type == 'Ideal':
+            # Frequency domain masking
             n = len(t_cont)
             dt = t_cont[1] - t_cont[0]
             yf = np.fft.fft(y_cont)
@@ -385,6 +399,7 @@ class AliasingToolbox:
         if num_samples < 2: num_samples = 2
         t_samp = np.linspace(0, (num_samples - 1) / f_samp, num_samples)
 
+        # Discrete Sampling
         if aaf_type != 'None':
             # Sample the filtered 'analog' signal
             y_samp_ideal = np.interp(t_samp, t_cont, y_filt_cont)
@@ -394,12 +409,13 @@ class AliasingToolbox:
             y_samp_ideal = SignalRegistry.create_signal(wave_type, t_samp, f_sig, f_harm, a_harm, phase, n_harm)
             self.line_filt.set_visible(False)
 
+        # Quantization (Bit-depth reduction)
         levels = 2**bits
         y_samp = np.round((y_samp_ideal + 1) / 2 * (levels - 1)) / (levels - 1) * 2 - 1
 
-        # Quantization Error: Difference between quantized and ideal samples
         quant_error = y_samp - y_samp_ideal
 
+        # Windowing (Hamming/Hann/Rect)
         N_samp = len(y_samp)
         if window_type == 'Hamming': window = np.hamming(N_samp)
         elif window_type == 'Hann': window = np.hanning(N_samp)
@@ -407,6 +423,7 @@ class AliasingToolbox:
         
         y_samp_fft_input = y_samp * window
 
+        # FFT Reconstruction Logic (Zero-padding in frequency domain)
         Y_fft = np.fft.fft(y_samp_fft_input)
         Y_padded = np.zeros(self.num_continuous_points, dtype=complex)
         half = (N_samp + 1) // 2
@@ -418,6 +435,7 @@ class AliasingToolbox:
         mags = np.abs(np.fft.rfft(y_samp_fft_input)) / N_samp
         phases = np.angle(np.fft.rfft(y_samp_fft_input))
 
+        # Plot scaling (Linear vs dB)
         if db_on:
             display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
             self.ax_freq.set_ylabel("Magnitude (dB)")
@@ -427,6 +445,7 @@ class AliasingToolbox:
             self.ax_freq.set_ylabel("Magnitude")
             self.ax_freq.set_ylim(0, max(1.5, (1 + a_harm) * 1.2))
 
+        # Update Time Domain Plots
         self.line_cont.set_data(t_cont, y_cont)
         self.line_filt.set_data(t_cont, y_filt_cont)
         self.line_step.set_data(t_samp, y_samp)
@@ -440,12 +459,14 @@ class AliasingToolbox:
         self.line_phase.set_data(freqs, phases)
         self.ax_phase.set_xlim(0, max(f_samp/2 + 20, max_freq + 20))
 
+        # Update Quantization Plot
         self.line_quant.set_data(t_samp, quant_error)
         self.ax_quant.set_xlim(0, duration)
         self.ax_quant.set_ylim(-1.5/(levels-1 if levels>1 else 1), 1.5/(levels-1 if levels>1 else 1))
         self.line_spec.set_data(freqs, display_mags)
         self.nyquist_line.set_xdata([f_samp/2, f_samp/2])
         
+        # Aliasing folding logic and visualization
         is_aliased = f_samp < 2 * max_freq
         self.true_freq_line.set_xdata([max_freq, max_freq])
         
@@ -454,6 +475,7 @@ class AliasingToolbox:
         self.alias_indicator.set_visible(is_aliased)
 
         self.ax_freq.set_xlim(0, max(f_samp/2 + 20, max_freq + 20))
+        # End update
         
         noise = y_cont - y_recon
         rmse = np.sqrt(np.mean(noise**2))
