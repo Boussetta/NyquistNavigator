@@ -387,7 +387,7 @@ Reduce `num_continuous_points` in code or use a lower resolution preset scenario
 
 - **Issues:** [GitHub Issues](https://github.com/Boussetta/NyquistNavigator/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/Boussetta/NyquistNavigator/discussions)
-- **Email:** wissem.boussetta@example.com
+- **Email:** wissem.boussetta@outlook.com
 
 ---
 
