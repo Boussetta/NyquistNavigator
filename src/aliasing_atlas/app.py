@@ -37,9 +37,10 @@ except ImportError:
     Audio, display = None, None
 
 # Optional import for local desktop audio playback.
+# In cloud environments (Colab), PortAudio may not be available (OSError).
 try:
     import sounddevice as sd
-except ImportError:
+except (ImportError, OSError):
     sd = None
 
 
