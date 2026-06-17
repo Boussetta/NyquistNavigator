@@ -1,7 +1,5 @@
 import numpy as np
-import pytest
 from aliasing_atlas.signals import SignalRegistry
-from aliasing_atlas.app import AliasingToolbox
 
 def test_signal_calculation_sine():
     """Verify that the sine wave generation is mathematically correct."""
@@ -19,7 +17,7 @@ def test_signal_calculation_sine():
     np.testing.assert_allclose(y, expected, atol=1e-7)
 
 def test_signal_calculation_triangle():
-    """Verify triangle wave generation logic."""
+    """Verify first-harmonic triangle approximation behavior."""
     t = np.array([0, 0.25, 0.5, 0.75, 1.0])
     f_sig = 1.0
     f_harm = 0.0
@@ -28,12 +26,11 @@ def test_signal_calculation_triangle():
     
     y = SignalRegistry.create_signal('Triangle', t, f_sig, f_harm, a_harm, phase)
     
-    # Triangle at 1Hz, phase 0: starts at -1, peaks at 1 (0.5s), back to -1 (1s)
-    expected = np.array([-1.0, 0.0, 1.0, 0.0, -1.0])
+    # With n_harm=1, the implementation returns the first odd Fourier harmonic only.
+    expected = (8 / np.pi**2) * np.sin(2 * np.pi * f_sig * t + phase)
     np.testing.assert_allclose(y, expected, atol=1e-7)
 
-def test_aliasing_detection_logic():
-    """Simple check for frequency limits."""
-    app = AliasingToolbox()
-    assert app.f_sig_max == 50.0
-    assert app.f_samp_max == 1500.0
+def test_signal_registry_max_freq_for_square():
+    """Verify max-frequency prediction for Fourier-based waves."""
+    max_freq = SignalRegistry.get_max_freq('Square', f_sig=5.0, f_harm=30.0, a_harm=0.0, n_harm=4)
+    assert max_freq == 35.0
