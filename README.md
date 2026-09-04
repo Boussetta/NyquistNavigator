@@ -327,6 +327,11 @@ sinewave-sampling/
 - **[GOVERNANCE.md](GOVERNANCE.md):** Project decision-making and maintainer policies
 - **[SECURITY.md](SECURITY.md):** Security considerations and reporting vulnerabilities
 - **[CHANGELOG.md](CHANGELOG.md):** Detailed release notes and feature history
+- **[RELEASING.md](RELEASING.md):** Maintainer checklist for versioned releases
+
+## Release Status
+
+The repository includes an automated release workflow, but PyPI publication requires the one-time trusted-publisher setup described in [RELEASING.md](RELEASING.md). Until that setup is complete, install AliasingAtlas from source as described above.
 
 ## Examples
 
