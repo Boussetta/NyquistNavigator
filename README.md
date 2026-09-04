@@ -6,7 +6,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
-[![Tests Passing](https://img.shields.io/badge/Tests-19%20Passing-brightgreen)](#testing)
+[![Tests](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml)
+[![Quality](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml)
 
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation)
 
@@ -252,9 +253,14 @@ alias_freq = folded_alias_frequency(max_freq=10, f_samp=30)
 Run the comprehensive test suite:
 
 ```bash
-pip install pytest
-pytest tests/
+python3 -m pip install -e ".[dev]"
+python3 -m pytest -q --cov=aliasing_atlas --cov-report=term-missing
+python3 -m ruff check src tests
+python3 -m mypy src/aliasing_atlas --ignore-missing-imports
 ```
+
+Pull requests and pushes to `main` run the same tests, linting, type checking,
+notebook validation, and package build checks through GitHub Actions.
 
 Test coverage includes:
 - DSP functions (sampling, quantization, filtering, reconstruction)
