@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
-[![Tests Passing](https://img.shields.io/badge/Tests-18%20Passing-brightgreen)](#testing)
+[![Tests Passing](https://img.shields.io/badge/Tests-19%20Passing-brightgreen)](#testing)
 
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation)
 
@@ -88,10 +88,14 @@ Perfect for students, educators, and signal processing practitioners who want to
 - Python 3.8 or later
 - pip or conda
 
-### From PyPI (Recommended)
+### From Source
+
+The package is currently installed directly from the repository. PyPI publication is not yet available.
 
 ```bash
-pip install aliasing-atlas
+git clone https://github.com/Boussetta/NyquistNavigator.git
+cd NyquistNavigator
+python3 -m pip install -e .
 ```
 
 Then launch:
@@ -105,8 +109,9 @@ Clone the repository and install in editable mode:
 
 ```bash
 git clone https://github.com/Boussetta/NyquistNavigator.git
-cd sinewave-sampling
-pip install -e ".[dev]"
+cd NyquistNavigator
+python3 -m pip install -e .
+python3 -m pip install pytest
 ```
 
 ## Quick Start
@@ -143,8 +148,8 @@ import numpy as np
 
 t = np.linspace(0, 1, 1000)
 y = SignalRegistry.create_signal('Sine', t, f_sig=10, f_harm=20, a_harm=0.0, phase=0)
-y_sampled, t_sampled = sample_signal(t, y, f_samp=30, duration=1.0)
-freq, magnitude = compute_spectrum(y_sampled, 1.0/30)
+t_sampled, y_sampled = sample_signal(t, y, f_samp=30, duration=1.0)
+freq, magnitude, phase = compute_spectrum(y_sampled, f_samp=30)
 ```
 
 ## Understanding the Visualization
@@ -233,18 +238,18 @@ t_samp, y_samp = sample_signal(t_cont, y_filt, f_samp=30, duration=0.3)
 # 4. Quantize
 y_quant = quantize_signal(y_samp, bits=8)
 
-# 5. Reconstruct
-y_recon = reconstruct_fft(t_samp, y_quant, f_samp=30)
+# 5. Reconstruct to a dense output grid
+y_recon = reconstruct_fft(y_quant, num_output_points=len(t_cont))
 
 # 6. Analyze
-freq, mag = compute_spectrum(y_quant, fs=30)
-aliased = is_aliased(f_sig=10, f_samp=30)
-alias_freq = folded_alias_frequency(f_sig=10, f_samp=30)
+freq, mag, phase = compute_spectrum(y_quant, f_samp=30)
+aliased = is_aliased(max_freq=10, f_samp=30)
+alias_freq = folded_alias_frequency(max_freq=10, f_samp=30)
 ```
 
 ## Testing
 
-Run the comprehensive test suite (18 passing tests):
+Run the comprehensive test suite (19 tests at the time of writing):
 
 ```bash
 pip install pytest
@@ -264,7 +269,7 @@ sinewave-sampling/
 ├── src/aliasing_atlas/              # Main package
 │   ├── __init__.py                  # Version & public API
 │   ├── __main__.py                  # CLI entry point
-│   ├── app.py                       # Interactive GUI (1000+ lines)
+│   ├── app.py                       # Interactive GUI and orchestration
 │   ├── dsp.py                       # Pure DSP functions
 │   ├── signals.py                   # Signal generation models
 │   ├── presets.py                   # Pedagogical presets
@@ -341,7 +346,7 @@ If you use AliasingAtlas in academic research or teaching, please cite:
 @software{aliasingatlas2024,
   author = {Wissem Boussetta},
   title = {AliasingAtlas: Interactive Tool for Visualizing Sampling and Aliasing},
-  year = {2024},
+  year = {2026},
   url = {https://github.com/Boussetta/NyquistNavigator}
 }
 ```
@@ -368,8 +373,10 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 Ensure package is installed:
 ```bash
-pip install -e .
+python3 -m pip install -e .
 ```
+
+If you are using Google Colab, run the setup cell in `AliasingAtlas.ipynb`; it clones the repository and adds `src/` to the import path.
 
 ### Audio not playing in Colab
 
@@ -387,7 +394,7 @@ Reduce `num_continuous_points` in code or use a lower resolution preset scenario
 
 - **Issues:** [GitHub Issues](https://github.com/Boussetta/NyquistNavigator/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/Boussetta/NyquistNavigator/discussions)
-- **Email:** wissem.boussetta@outlook.com
+- **Support:** [GitHub Issues](https://github.com/Boussetta/NyquistNavigator/issues)
 
 ---
 
