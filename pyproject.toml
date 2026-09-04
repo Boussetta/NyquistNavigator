@@ -12,11 +12,41 @@ license = {text = "MIT"}
 authors = [
     {name = "Wissem Boussetta"}
 ]
+keywords = ["signal-processing", "dsp", "sampling", "aliasing", "nyquist", "education"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "numpy>=1.20.0",
     "matplotlib>=3.5.0",
     "scipy>=1.7.0",
     "sounddevice>=0.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.0",
+    "mypy>=1.8",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.6",
+    "twine>=5.0",
 ]
 
 [project.urls]
@@ -29,3 +59,6 @@ aliasing-atlas = "aliasing_atlas.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src/aliasing_atlas"]
