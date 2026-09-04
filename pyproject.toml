@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Wissem", email = "wissem@example.com"}
+    {name = "Wissem Boussetta"}
 ]
 dependencies = [
     "numpy>=1.20.0",
@@ -20,7 +20,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/wissem/aliasing-atlas"
+Homepage = "https://github.com/Boussetta/NyquistNavigator"
+Repository = "https://github.com/Boussetta/NyquistNavigator"
+Issues = "https://github.com/Boussetta/NyquistNavigator/issues"
 
 [project.scripts]
 aliasing-atlas = "aliasing_atlas.__main__:main"
