@@ -69,7 +69,7 @@ class Signal(ABC):
             n_harm: Number of harmonics to include (default 1, only affects
                     Square, Sawtooth, Triangle waveforms).
         """
-        self.t = t
+        self.t: np.ndarray = np.asarray(t, dtype=np.float64)
         self.f_sig = f_sig
         self.f_harm = f_harm
         self.a_harm = a_harm
