@@ -12,6 +12,9 @@ build/
 # Notebooks
 .ipynb_checkpoints
 
+# Application-generated exports
+exports/
+
 # IDEs
 .vscode/
 .idea/
