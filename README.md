@@ -99,6 +99,9 @@ sudo apt install python3-venv
 
 The package is currently installed directly from the repository. PyPI publication is not yet available.
 
+For Windows PowerShell, replace `.venv/bin/python` with `.venv\Scripts\python` and
+`source .venv/bin/activate` with `.venv\Scripts\Activate.ps1` in the commands below.
+
 ```bash
 git clone https://github.com/Boussetta/NyquistNavigator.git
 cd NyquistNavigator
