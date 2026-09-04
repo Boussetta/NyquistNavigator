@@ -275,6 +275,7 @@ alias_freq = folded_alias_frequency(max_freq=10, f_samp=30)
 Run the comprehensive test suite:
 
 ```bash
+.venv/bin/python -m pip install -e ".[dev]"
 .venv/bin/python -m pytest -q --cov=aliasing_atlas --cov-report=term-missing
 .venv/bin/python -m ruff check src tests
 .venv/bin/python -m mypy src/aliasing_atlas --ignore-missing-imports
