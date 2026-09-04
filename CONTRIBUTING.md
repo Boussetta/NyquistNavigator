@@ -40,7 +40,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install in editable mode and development tools
 python3 -m pip install -e .
-python3 -m pip install pytest pytest-cov black flake8 mypy
+python3 -m pip install pytest pytest-cov ruff mypy build twine
 ```
 
 #### Development Workflow
@@ -64,9 +64,9 @@ python3 -m pip install pytest pytest-cov black flake8 mypy
 
 4. **Format and lint your code**
    ```bash
-   black src/ tests/
-   flake8 src/ tests/ --max-line-length=100
-   mypy src/ --strict
+   python3 -m ruff check src tests
+   python3 -m mypy src/aliasing_atlas --ignore-missing-imports
+   python3 -m pytest -q --cov=aliasing_atlas --cov-report=term-missing
    ```
 
 5. **Commit with clear messages**
