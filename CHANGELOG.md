@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Desktop CLI (`aliasing-atlas` command)
   - Python module entry point (`python -m aliasing_atlas`)
 
-- **Comprehensive Testing**: 19 unit tests covering
+- **Comprehensive Testing**: pytest unit tests covering
   - DSP functions (quantization, filtering, reconstruction)
   - Signal generation (Fourier series, modulation)
   - Preset loading and boundary conditions
