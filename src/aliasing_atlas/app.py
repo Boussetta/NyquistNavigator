@@ -273,7 +273,9 @@ class AliasingToolbox:
             for lbl in w.labels:
                 lbl.set_fontsize(8)
 
-    def _tab_callback(self, label: str) -> None:
+    def _tab_callback(self, label: Optional[str]) -> None:
+        if label is None:
+            return
         self._update_tab_visibility(label)
         self.fig.canvas.draw_idle()
 
@@ -313,7 +315,9 @@ class AliasingToolbox:
         if target_label in labels:
             widget.set_active(labels.index(target_label))
 
-    def _preset_callback(self, label: str) -> None:
+    def _preset_callback(self, label: Optional[str]) -> None:
+        if label is None:
+            return
         preset = get_preset(label)
 
         self._suspend_updates = True
@@ -695,7 +699,7 @@ class AliasingToolbox:
 
         self.fig.canvas.draw_idle()
 
-    def update(self, val: Optional[float]) -> None:
+    def update(self, val: object) -> None:
         if self._suspend_updates:
             return
 

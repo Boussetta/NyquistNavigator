@@ -87,21 +87,32 @@ Perfect for students, educators, and signal processing practitioners who want to
 ### Prerequisites
 
 - Python 3.8 or later
-- pip or conda
+- pip and the Python `venv` module
+
+On Debian or Ubuntu, install the `venv` module if creating an environment fails:
+
+```bash
+sudo apt install python3-venv
+```
 
 ### From Source
 
 The package is currently installed directly from the repository. PyPI publication is not yet available.
 
+For Windows PowerShell, replace `.venv/bin/python` with `.venv\Scripts\python` and
+`source .venv/bin/activate` with `.venv\Scripts\Activate.ps1` in the commands below.
+
 ```bash
 git clone https://github.com/Boussetta/NyquistNavigator.git
 cd NyquistNavigator
-python3 -m pip install -e .
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e .
 ```
 
 Then launch:
 ```bash
-aliasing-atlas
+.venv/bin/python -m aliasing_atlas
 ```
 
 ### For Development
@@ -111,27 +122,41 @@ Clone the repository and install in editable mode:
 ```bash
 git clone https://github.com/Boussetta/NyquistNavigator.git
 cd NyquistNavigator
-python3 -m pip install -e .
-python3 -m pip install pytest
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+To activate the environment for the current shell instead:
+
+```bash
+source .venv/bin/activate
 ```
 
 ## Quick Start
 
 ### GUI Application
 
-Simply run:
+With the virtual environment activated, run:
 ```bash
 aliasing-atlas
 ```
 
-Or via Python:
+Or run without activating it:
 ```bash
-python -m aliasing_atlas
+.venv/bin/python -m aliasing_atlas
 ```
 
 ### Jupyter Notebook
 
-Open `AliasingAtlas.ipynb` in Jupyter or Google Colab for an interactive notebook experience.
+For local Jupyter, install the notebook dependencies and launch Jupyter:
+
+```bash
+.venv/bin/python -m pip install jupyter ipympl
+.venv/bin/python -m jupyter notebook AliasingAtlas.ipynb
+```
+
+For Google Colab, open `AliasingAtlas.ipynb` and run the setup cell first. The setup cell clones the repository and adds `src/` to the import path. Colab uses browser audio because desktop PortAudio is not available there.
 
 ### Programmatic Usage
 
@@ -253,10 +278,10 @@ alias_freq = folded_alias_frequency(max_freq=10, f_samp=30)
 Run the comprehensive test suite:
 
 ```bash
-python3 -m pip install -e ".[dev]"
-python3 -m pytest -q --cov=aliasing_atlas --cov-report=term-missing
-python3 -m ruff check src tests
-python3 -m mypy src/aliasing_atlas --ignore-missing-imports
+.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pytest -q --cov=aliasing_atlas --cov-report=term-missing
+.venv/bin/python -m ruff check src tests
+.venv/bin/python -m mypy src/aliasing_atlas --ignore-missing-imports
 ```
 
 Pull requests and pushes to `main` run the same tests, linting, type checking,
