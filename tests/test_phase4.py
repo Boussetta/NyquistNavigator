@@ -59,3 +59,15 @@ def test_tab_switch_releases_matplotlib_mouse_grabber():
 
     assert toolbox.fig.canvas.mouse_grabber is None
     toolbox.fig.clear()
+
+
+def test_chirp_updates_summary_and_dims_harmonic_controls():
+    from aliasing_atlas.app import AliasingToolbox
+
+    toolbox = AliasingToolbox()
+    toolbox.w_wave.set_active([label.get_text() for label in toolbox.w_wave.labels].index("Chirp"))
+
+    assert "Chirp" in toolbox.summary_text.get_text()
+    assert toolbox.s_f_harm.label.get_alpha() == 0.45
+    assert toolbox.s_n_harm.poly.get_alpha() == 0.25
+    toolbox.fig.clear()
