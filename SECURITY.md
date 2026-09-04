@@ -2,7 +2,7 @@
 
 ## Reporting Security Vulnerabilities
 
-**Do not** open public issues for security vulnerabilities. Instead, please report security issues responsibly by emailing:
+**Do not** open public issues for security vulnerabilities. Instead, please report security issues responsibly through a private channel:
 
 Please use [GitHub Security Advisories](https://github.com/Boussetta/NyquistNavigator/security/advisories/new) for private reports. If that page is unavailable, contact the repository maintainer through the GitHub profile.
 
