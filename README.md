@@ -249,7 +249,7 @@ alias_freq = folded_alias_frequency(max_freq=10, f_samp=30)
 
 ## Testing
 
-Run the comprehensive test suite (19 tests at the time of writing):
+Run the comprehensive test suite:
 
 ```bash
 pip install pytest
