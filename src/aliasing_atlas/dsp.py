@@ -189,7 +189,7 @@ def reconstruct_fft(y_samp_fft_input: np.ndarray, num_output_points: int) -> np.
     """Reconstruct by zero-padding in frequency domain and inverse FFT."""
     n_samp = len(y_samp_fft_input)
     y_fft = np.fft.fft(y_samp_fft_input)
-    y_padded = np.zeros(num_output_points, dtype=complex)
+    y_padded: np.ndarray = np.zeros(num_output_points, dtype=complex)
     half = (n_samp + 1) // 2
     y_padded[:half] = y_fft[:half]
     y_padded[num_output_points - (n_samp // 2) :] = y_fft[n_samp - (n_samp // 2) :]
