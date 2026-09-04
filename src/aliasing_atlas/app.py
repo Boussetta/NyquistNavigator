@@ -54,13 +54,16 @@ class AliasingToolbox:
         self._suspend_updates = False
 
         self.fig = plt.figure(figsize=(14, 8.8))
+        self.fig.patch.set_facecolor("#eef3f8")
         plt.subplots_adjust(bottom=0.25, top=0.94, left=0.06, right=0.98, hspace=0.33, wspace=0.25)
 
         self.ax_time = self.fig.add_subplot(2, 2, 1)
+        self.ax_time.set_facecolor("#ffffff")
         self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight="bold")
         self.ax_time.grid(True, linestyle=":", alpha=0.6)
 
         self.ax_freq = self.fig.add_subplot(2, 2, 2)
+        self.ax_freq.set_facecolor("#ffffff")
         self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight="bold")
         self.ax_freq.grid(True, linestyle=":", alpha=0.6)
         self.ax_freq.set_ylabel("Magnitude")
@@ -68,12 +71,14 @@ class AliasingToolbox:
         self.ax_freq.set_ylim(0, 1.5)
 
         self.ax_phase = self.fig.add_subplot(2, 2, 3)
+        self.ax_phase.set_facecolor("#ffffff")
         self.ax_phase.set_title("Frequency Domain: Phase Spectrum", fontweight="bold")
         self.ax_phase.grid(True, linestyle=":", alpha=0.6)
         self.ax_phase.set_ylabel("Phase (rad)")
         self.ax_phase.set_ylim(-np.pi - 0.5, np.pi + 0.5)
 
         self.ax_quant = self.fig.add_subplot(2, 2, 4)
+        self.ax_quant.set_facecolor("#ffffff")
         self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight="bold")
         self.ax_quant.grid(True, linestyle=":", alpha=0.6)
         self.ax_quant.set_ylabel("Error Amp")
@@ -235,8 +240,33 @@ class AliasingToolbox:
         self.btn_export_wav.on_clicked(self._export_wav_callback)
         self.btn_reset.on_clicked(self._reset_callback)
 
-        self.status_text = self.fig.text(0.5, 0.01, "", ha="center", bbox=dict(facecolor="white", alpha=0.8))
-        self.learning_text = self.fig.text(0.5, 0.98, "", ha="center", va="top", fontsize=9)
+        self.status_text = self.fig.text(
+            0.5,
+            0.01,
+            "",
+            ha="center",
+            fontsize=9,
+            color="#243447",
+            bbox=dict(facecolor="#ffffff", edgecolor="#c7d4e2", alpha=0.95, pad=4),
+        )
+        self.learning_text = self.fig.text(
+            0.5,
+            0.98,
+            "",
+            ha="center",
+            va="top",
+            fontsize=9,
+            color="#315b7d",
+        )
+        self.summary_text = self.fig.text(
+            0.06,
+            0.955,
+            "",
+            ha="left",
+            va="top",
+            fontsize=9,
+            color="#243447",
+        )
 
         self._style_controls()
         self.update(None)
@@ -475,6 +505,18 @@ class AliasingToolbox:
             self.s_f_harm.label.set_text("Harmonic (Hz)")
             self.s_f_harm_amp.label.set_text("Harmonic Amp")
 
+    def _update_control_states(self, wave_type: str) -> None:
+        """Dim controls that do not affect the selected signal model."""
+        harmonic_controls_active = wave_type not in ["AM", "FM", "Chirp"]
+        for slider in (self.s_f_harm, self.s_f_harm_amp, self.s_n_harm):
+            slider.label.set_alpha(1.0 if harmonic_controls_active else 0.45)
+            slider.valtext.set_alpha(1.0 if harmonic_controls_active else 0.45)
+            slider.track.set_alpha(1.0 if harmonic_controls_active else 0.35)
+            slider.poly.set_alpha(1.0 if harmonic_controls_active else 0.25)
+
+        for label in self.w_wave.labels:
+            label.set_color("#1f6f9f" if label.get_text() == wave_type else "#243447")
+
     def _build_signal_data(
         self,
         f_sig: float,
@@ -616,6 +658,15 @@ class AliasingToolbox:
 
         self.status_text.set_text(msg)
 
+    def _update_summary(self, wave_type: str, max_freq: float, f_samp: float, bits: int, aaf_type: str, recon_type: str) -> None:
+        """Render a compact scan-friendly summary of the active simulation."""
+        nyquist = 2.0 * max_freq
+        ratio = f_samp / nyquist if nyquist > 0 else 0.0
+        self.summary_text.set_text(
+            f"{wave_type}  |  bandwidth <= {max_freq:.1f} Hz  |  Nyquist >= {nyquist:.1f} Hz  |  "
+            f"fs ratio {ratio:.2f}  |  {bits}-bit  |  {aaf_type} filter  |  {recon_type} reconstruction"
+        )
+
     def _update_learning_hint(
         self,
         enabled: bool,
@@ -726,6 +777,7 @@ class AliasingToolbox:
             return
 
         self._update_signal_labels(wave_type)
+        self._update_control_states(wave_type)
         signal_data = self._build_signal_data(
             f_sig,
             f_harm,
@@ -780,6 +832,7 @@ class AliasingToolbox:
         self._update_aaf_response(aaf_type, b, a, fs_cont, f_samp, db_on)
         self._update_quantization_plot(t_samp, quant_error, duration, bits)
         self._update_status(y_cont, y_recon, max_freq, aaf_type, aliased)
+        self._update_summary(wave_type, max_freq, f_samp, bits, aaf_type, recon_type)
         self._update_learning_hint(learning_on, wave_type, aliased, max_freq, f_samp, recon_type, aaf_type, bits)
         self.fig.canvas.draw_idle()
 
