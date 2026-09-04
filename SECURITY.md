@@ -2,9 +2,9 @@
 
 ## Reporting Security Vulnerabilities
 
-**Do not** open public issues for security vulnerabilities. Instead, please report security issues responsibly by emailing:
+**Do not** open public issues for security vulnerabilities. Instead, please report security issues responsibly through a private channel:
 
-📧 **wissem.boussetta@example.com**
+Please use [GitHub Security Advisories](https://github.com/Boussetta/NyquistNavigator/security/advisories/new) for private reports. If that page is unavailable, contact the repository maintainer through the GitHub profile.
 
 Please include:
 
@@ -49,9 +49,9 @@ We will acknowledge receipt of your report within 48 hours and provide a timelin
 
 ## Security Best Practices for Users
 
-1. **Keep dependencies updated**: Run `pip install --upgrade aliasing-atlas` periodically
+1. **Keep dependencies updated**: Reinstall from the repository and review dependency updates periodically
 2. **Use trusted Python environments**: Install in isolated virtual environments
-3. **Verify authenticity**: Only install from official PyPI: `pip install aliasing-atlas`
+3. **Verify authenticity**: Clone only from the official repository: `https://github.com/Boussetta/NyquistNavigator`
 4. **Be cautious with audio**: Limit speaker volume when testing exported audio files
 
 ## Compliance

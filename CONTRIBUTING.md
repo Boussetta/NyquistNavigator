@@ -32,15 +32,15 @@ If you discover a bug or have a feature request:
 ```bash
 # Clone the repository
 git clone https://github.com/Boussetta/NyquistNavigator.git
-cd sinewave-sampling
+cd NyquistNavigator
 
 # Create a virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install in editable mode with dev dependencies
-pip install -e ".[dev]"
-pip install pytest pytest-cov black flake8 mypy
+# Install in editable mode and development tools
+python3 -m pip install -e .
+python3 -m pip install pytest pytest-cov black flake8 mypy
 ```
 
 #### Development Workflow
