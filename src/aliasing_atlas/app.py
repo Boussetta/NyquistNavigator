@@ -278,6 +278,10 @@ class AliasingToolbox:
         self.fig.canvas.draw_idle()
 
     def _update_tab_visibility(self, active_tab: str) -> None:
+        mouse_grabber = getattr(self.fig.canvas, "mouse_grabber", None)
+        if mouse_grabber is not None:
+            self.fig.canvas.release_mouse(mouse_grabber)
+
         for tab_name, axes_list in self.tab_groups.items():
             is_visible = tab_name == active_tab
             for ax in axes_list:

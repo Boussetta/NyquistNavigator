@@ -46,3 +46,16 @@ def test_learning_hint_low_bits_message():
         bits=3,
     )
     assert "quantization is coarse" in hint
+
+
+def test_tab_switch_releases_matplotlib_mouse_grabber():
+    from aliasing_atlas.app import AliasingToolbox
+
+    toolbox = AliasingToolbox()
+    grabbed_axis = toolbox.cax_f_sig
+    toolbox.fig.canvas.grab_mouse(grabbed_axis)
+
+    toolbox._update_tab_visibility("Sampling")
+
+    assert toolbox.fig.canvas.mouse_grabber is None
+    toolbox.fig.clear()
