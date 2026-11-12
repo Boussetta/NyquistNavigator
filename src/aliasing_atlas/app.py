@@ -82,6 +82,9 @@ class AliasingToolbox:
         canvas = self.fig.canvas
         if hasattr(canvas, "header_visible"):  # ipympl: hide the redundant "Figure N" header
             canvas.header_visible = False
+        # Connected before any widget exists, so these run first for every event.
+        canvas.mpl_connect("button_press_event", self._release_stale_mouse_grab)
+        canvas.mpl_connect("figure_leave_event", self._end_active_drags)
 
         self.ax_time = self.fig.add_subplot(2, 2, 1)
         self.ax_time.set_facecolor("#ffffff")
@@ -248,6 +251,20 @@ class AliasingToolbox:
             "Sampling": self.tab_sampling_axes,
             "Audio": self.tab_audio_axes,
         }
+        # Tab panels share screen positions, and matplotlib widgets react to clicks
+        # even when hidden. Widgets on hidden tabs are therefore deactivated.
+        self.tab_widgets = {
+            "Signal": [self.s_f_harm, self.s_f_harm_amp, self.s_phase, self.s_n_harm, self.w_wave],
+            "Sampling": [self.s_bits, self.w_radio, self.w_aaf, self.w_recon, self.w_db],
+            "Audio": [
+                self.s_vol,
+                self.s_dur,
+                self.w_audio_src,
+                self.btn_play_audio,
+                self.btn_export_cfg,
+                self.btn_export_wav,
+            ],
+        }
 
         self.w_tabs.on_clicked(self._tab_callback)
         self._update_tab_visibility("Signal")
@@ -343,10 +360,34 @@ class AliasingToolbox:
         self._update_tab_visibility(label)
         self.fig.canvas.draw_idle()
 
+    def _sliders(self) -> list:
+        return [w for w in vars(self).values() if isinstance(w, Slider)]
+
+    def _end_active_drags(self, event: object = None) -> None:
+        """Stop every slider drag and release the canvas mouse grab."""
+        for slider in self._sliders():
+            slider.drag_active = False
+        canvas = self.fig.canvas
+        grabber = getattr(canvas, "mouse_grabber", None)
+        if grabber is not None:
+            canvas.release_mouse(grabber)
+
+    def _release_stale_mouse_grab(self, event) -> None:
+        """Drop a grab left behind when a mouse-up was lost (e.g. released outside the figure).
+
+        Without this, the next press on another slider raises
+        ``RuntimeError: Another Axes already grabs mouse input``.
+        """
+        grabber = getattr(self.fig.canvas, "mouse_grabber", None)
+        if grabber is None or event.x is None or event.y is None:
+            return
+        # While a grab is held, matplotlib reports the grabber as event.inaxes, so
+        # test the pointer position itself: a press outside the grabber is stale.
+        if not grabber.bbox.contains(event.x, event.y):
+            self._end_active_drags()
+
     def _update_tab_visibility(self, active_tab: str) -> None:
-        mouse_grabber = getattr(self.fig.canvas, "mouse_grabber", None)
-        if mouse_grabber is not None:
-            self.fig.canvas.release_mouse(mouse_grabber)
+        self._end_active_drags()
 
         for tab_name, axes_list in self.tab_groups.items():
             is_visible = tab_name == active_tab
@@ -354,6 +395,8 @@ class AliasingToolbox:
                 ax.set_visible(is_visible)
                 for child in ax.get_children():
                     child.set_visible(is_visible)
+            for widget in self.tab_widgets[tab_name]:
+                widget.active = is_visible  # Widget.active; RadioButtons.set_active(i) means something else
 
     def _reset_callback(self, event) -> None:
         # Batch all widget changes into a single redraw.
