@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated tag-based release workflow with package version verification.
 - PyPI Trusted Publishing and GitHub Release integration.
 - Maintainer release checklist in `RELEASING.md`.
+- `build_sampling_grid()` builds a dense time grid on which every sample instant is an exact grid point.
+- `quantize_signal(..., full_scale=...)` and `compute_spectrum(..., window_type=...)` parameters.
+- End-to-end pipeline accuracy tests.
+
+### Fixed
+
+- FFT reconstruction no longer uses the windowed samples; the analysis window now only affects the spectrum (#15).
+- FFT reconstruction, sampling, and error metrics now share one time axis. A 10x oversampled 16-bit sine now reports ~97 dB SNR instead of 14-39 dB (#15).
+- Butterworth anti-alias filter is now zero-phase (`sosfiltfilt` with second-order sections), so its delay is no longer counted as reconstruction error. The plotted response shows the effective |H|² (#15).
+- Quantizer clips to its full-scale range like a real ADC. The GUI sets the range automatically to the signal peak (#15).
+- Magnitude spectrum is amplitude-scaled (a unit sine reads 1.0) and compensates for the window's coherent gain (#15).
+- `reconstruction_metrics` no longer emits a divide-by-zero warning for a silent reference (#15).
 
 ## [1.0.0] - 2026-09-04
 
