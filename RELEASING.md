@@ -52,6 +52,8 @@ Use Semantic Versioning:
 
 The workflow rejects a tag when its version does not exactly match `pyproject.toml`.
 
+Before anything is built or published, a `verify` job runs the test suite, Ruff, and mypy on the oldest and newest supported Python versions. Publishing only proceeds when it passes. Only the publishing job is granted `id-token` and `contents: write`.
+
 ## Recovery
 
 If a release fails before publishing, fix the issue and push a new commit to `main`, then delete and recreate the tag only if it has not been published. Never overwrite a package version already published to PyPI; increment the version instead.
