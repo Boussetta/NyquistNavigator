@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 # Ensure src-layout imports work without requiring editable install.
@@ -58,7 +59,7 @@ def test_tab_switch_releases_matplotlib_mouse_grabber():
     toolbox._update_tab_visibility("Sampling")
 
     assert toolbox.fig.canvas.mouse_grabber is None
-    toolbox.fig.clear()
+    plt.close(toolbox.fig)
 
 
 def test_chirp_updates_summary_and_dims_harmonic_controls():
@@ -73,4 +74,4 @@ def test_chirp_updates_summary_and_dims_harmonic_controls():
     assert toolbox.s_f_harm.label.get_text() == "End Freq (Hz)"
     assert toolbox.s_f_harm_amp.label.get_alpha() == 0.45
     assert toolbox.s_n_harm.poly.get_alpha() == 0.25
-    toolbox.fig.clear()
+    plt.close(toolbox.fig)
