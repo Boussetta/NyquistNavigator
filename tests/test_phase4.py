@@ -68,6 +68,9 @@ def test_chirp_updates_summary_and_dims_harmonic_controls():
     toolbox.w_wave.set_active([label.get_text() for label in toolbox.w_wave.labels].index("Chirp"))
 
     assert "Chirp" in toolbox.summary_text.get_text()
-    assert toolbox.s_f_harm.label.get_alpha() == 0.45
+    # f_harm is the chirp end frequency, so it stays active; amplitude and Fourier count are unused.
+    assert toolbox.s_f_harm.label.get_alpha() == 1.0
+    assert toolbox.s_f_harm.label.get_text() == "End Freq (Hz)"
+    assert toolbox.s_f_harm_amp.label.get_alpha() == 0.45
     assert toolbox.s_n_harm.poly.get_alpha() == 0.25
     toolbox.fig.clear()
