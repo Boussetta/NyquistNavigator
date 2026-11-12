@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clicking sliders raised `RuntimeError: Another Axes already grabs mouse input` (shown as an ipympl traceback in Colab). The three control tabs share screen positions, and matplotlib widgets react to clicks even when hidden. Widgets on hidden tabs are now deactivated, so they no longer react or silently change value (#27).
+- A slider drag released outside the figure no longer leaves a stale mouse grab that blocks the next slider; drags also end when the pointer leaves the figure (#27).
+
 ## [2.0.0] - 2026-11-12
 
 A correctness release. Reconstruction, filtering, quantization, and spectrum readouts now match sampling theory, every preset demonstrates its lesson, and the Colab notebook is rewritten around guided experiments.
