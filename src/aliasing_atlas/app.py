@@ -35,6 +35,17 @@ try:
 except ImportError:
     Audio, display = None, None
 
+# Controls each signal model actually reads (others are dimmed in the UI).
+MODEL_USES_N_HARM = ("Square", "Sawtooth", "Triangle")
+MODEL_IGNORES_A_HARM = ("Chirp",)
+
+SIGNAL_LABELS = {
+    "AM": ("Carrier Freq (Hz)", "Message Freq (Hz)", "Mod Depth (m)"),
+    "FM": ("Carrier Freq (Hz)", "Message Freq (Hz)", "Mod Index (beta)"),
+    "Chirp": ("Start Freq (Hz)", "End Freq (Hz)", "Harmonic Amp"),
+}
+DEFAULT_LABELS = ("Base Freq (Hz)", "Extra Tone (Hz)", "Extra Tone Amp")
+
 # Optional import for local desktop audio playback.
 # In cloud environments (Colab), PortAudio may not be available (OSError).
 try:
@@ -51,6 +62,8 @@ class AliasingToolbox:
         self.f_samp_max = 1500.0
         self.num_continuous_points = 1000
         self._suspend_updates = False
+        # The GUI starts in the first preset so the preset selector matches the state.
+        defaults = get_preset(preset_names()[0])
 
         self.fig = plt.figure(figsize=(14, 8.8))
         self.fig.patch.set_facecolor("#eef3f8")
@@ -113,8 +126,8 @@ class AliasingToolbox:
         self.cax_learning = plt.axes([0.85, 0.14, 0.08, 0.09], facecolor=panel_color)
         self.cax_reset = plt.axes([0.94, 0.19, 0.05, 0.032], facecolor=slider_color)
 
-        self.s_f_sig = Slider(self.cax_f_sig, "Base Freq (Hz)", 1.0, self.f_sig_max, valinit=10.0)
-        self.s_f_samp = Slider(self.cax_f_samp, "Sampling (Hz)", 5.0, self.f_samp_max, valinit=50.0)
+        self.s_f_sig = Slider(self.cax_f_sig, DEFAULT_LABELS[0], 1.0, self.f_sig_max, valinit=defaults.f_sig)
+        self.s_f_samp = Slider(self.cax_f_samp, "Sampling (Hz)", 5.0, self.f_samp_max, valinit=defaults.f_samp)
         self.btn_reset = Button(self.cax_reset, "Reset All")
         self.w_preset = RadioButtons(self.cax_preset, tuple(preset_names()))
         self.cax_preset.set_title("Presets", fontsize=9)
@@ -132,11 +145,12 @@ class AliasingToolbox:
         self.cax_n_harm = plt.axes([0.46, 0.05, 0.20, 0.014], facecolor=slider_color)
         self.cax_wave = plt.axes([0.72, 0.03, 0.12, 0.08], facecolor=panel_color)
 
-        self.s_f_harm = Slider(self.cax_f_harm, "Harmonic (Hz)", 1.0, self.f_sig_max * 2, valinit=20.0)
-        self.s_f_harm_amp = Slider(self.cax_a_harm, "Harmonic Amp", 0.0, 1.0, valinit=0.0)
-        self.s_phase = Slider(self.cax_s_phase, "Phase", 0, 2 * np.pi, valinit=np.pi / 4)
-        self.s_n_harm = Slider(self.cax_n_harm, "Fourier Harm.", 1, 50, valinit=1, valstep=1)
+        self.s_f_harm = Slider(self.cax_f_harm, DEFAULT_LABELS[1], 1.0, self.f_sig_max * 2, valinit=defaults.f_harm)
+        self.s_f_harm_amp = Slider(self.cax_a_harm, DEFAULT_LABELS[2], 0.0, 1.0, valinit=defaults.a_harm)
+        self.s_phase = Slider(self.cax_s_phase, "Phase (rad)", 0, 2 * np.pi, valinit=defaults.phase)
+        self.s_n_harm = Slider(self.cax_n_harm, "Fourier Harm.", 1, 50, valinit=defaults.n_harm, valstep=1)
         self.w_wave = RadioButtons(self.cax_wave, tuple(SignalRegistry.get_signal_names()))
+        self._set_radio_value(self.w_wave, defaults.wave_type)
         self.cax_wave.set_title("Waveform", fontsize=9)
 
         self.tab_signal_axes = [
@@ -159,7 +173,7 @@ class AliasingToolbox:
         self.cax_recon = plt.axes([0.70, 0.03, 0.10, 0.08], facecolor=panel_color)
         self.cax_db_scale = plt.axes([0.82, 0.03, 0.12, 0.08], facecolor=panel_color)
 
-        self.s_bits = Slider(self.cax_bits, "Bit Depth", 2, 16, valinit=16, valstep=1)
+        self.s_bits = Slider(self.cax_bits, "Bit Depth", 2, 16, valinit=defaults.bits, valstep=1)
         self.w_radio = RadioButtons(self.cax_window, ("None", "Hamming", "Hann"))
         self.cax_window.set_title("Window", fontsize=9)
         self.w_aaf = RadioButtons(self.cax_aaf, ("None", "Ideal", "Butter"))
@@ -321,6 +335,8 @@ class AliasingToolbox:
                     child.set_visible(is_visible)
 
     def _reset_callback(self, event) -> None:
+        # Batch all widget changes into a single redraw.
+        self._suspend_updates = True
         self.s_f_sig.reset()
         self.s_f_harm.reset()
         self.s_f_harm_amp.reset()
@@ -337,7 +353,9 @@ class AliasingToolbox:
         self.w_audio_src.set_active(0)
         self.w_db.set_active(0)
         self.w_learning.set_active(0)
-        self.fig.canvas.draw_idle()
+        self.w_preset.set_active(0)
+        self._suspend_updates = False
+        self.update(None)
 
     def _set_radio_value(self, widget: RadioButtons, target_label: str) -> None:
         labels = [txt.get_text() for txt in widget.labels]
@@ -500,23 +518,23 @@ class AliasingToolbox:
         self.fig.canvas.draw_idle()
 
     def _update_signal_labels(self, wave_type: str) -> None:
-        if wave_type in ["AM", "FM"]:
-            self.s_f_sig.label.set_text("Carrier Freq (Hz)")
-            self.s_f_harm.label.set_text("Message Freq (Hz)")
-            self.s_f_harm_amp.label.set_text("Mod Index (beta/m)")
-        else:
-            self.s_f_sig.label.set_text("Base Freq (Hz)")
-            self.s_f_harm.label.set_text("Harmonic (Hz)")
-            self.s_f_harm_amp.label.set_text("Harmonic Amp")
+        f_sig_label, f_harm_label, a_harm_label = SIGNAL_LABELS.get(wave_type, DEFAULT_LABELS)
+        self.s_f_sig.label.set_text(f_sig_label)
+        self.s_f_harm.label.set_text(f_harm_label)
+        self.s_f_harm_amp.label.set_text(a_harm_label)
 
     def _update_control_states(self, wave_type: str) -> None:
         """Dim controls that do not affect the selected signal model."""
-        harmonic_controls_active = wave_type not in ["AM", "FM", "Chirp"]
-        for slider in (self.s_f_harm, self.s_f_harm_amp, self.s_n_harm):
-            slider.label.set_alpha(1.0 if harmonic_controls_active else 0.45)
-            slider.valtext.set_alpha(1.0 if harmonic_controls_active else 0.45)
-            slider.track.set_alpha(1.0 if harmonic_controls_active else 0.35)
-            slider.poly.set_alpha(1.0 if harmonic_controls_active else 0.25)
+        active = {
+            self.s_f_harm: True,
+            self.s_f_harm_amp: wave_type not in MODEL_IGNORES_A_HARM,
+            self.s_n_harm: wave_type in MODEL_USES_N_HARM,
+        }
+        for slider, is_active in active.items():
+            slider.label.set_alpha(1.0 if is_active else 0.45)
+            slider.valtext.set_alpha(1.0 if is_active else 0.45)
+            slider.track.set_alpha(1.0 if is_active else 0.35)
+            slider.poly.set_alpha(1.0 if is_active else 0.25)
 
         for label in self.w_wave.labels:
             label.set_color("#1f6f9f" if label.get_text() == wave_type else "#243447")
@@ -664,7 +682,7 @@ class AliasingToolbox:
         msg = f"RMSE: {rmse:.4f} | SNR: {snr:.1f} dB | Max Freq: {max_freq:.1f} Hz"
 
         if aaf_type == "Butter" and sp_signal is None:
-            msg = "Butterworth filter requires scipy (pip install scipy)."
+            msg = "Butterworth unavailable without SciPy (pip install scipy); showing unfiltered | " + msg
 
         if aliased:
             msg += " | WARNING: ALIASING DETECTED"

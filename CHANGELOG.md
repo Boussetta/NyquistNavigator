@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quantizer clips to its full-scale range like a real ADC. The GUI sets the range automatically to the signal peak (#15).
 - Magnitude spectrum is amplitude-scaled (a unit sine reads 1.0) and compensates for the window's coherent gain (#15).
 - `reconstruction_metrics` no longer emits a divide-by-zero warning for a silent reference (#15).
+- The extra tone added to Square/Sawtooth/Triangle is now a pure sinusoid, so aliasing detection is exact. Before, it was a hard-edged wave with unbounded bandwidth (#16).
+- Sine bandwidth no longer scales with the unused Fourier-harmonics slider (#16).
+- Only controls a model ignores are dimmed. AM/FM keep message frequency and modulation depth/index; Chirp keeps its end frequency and labels it (#16).
+- "Reset All" restores the first preset and its selector in a single redraw. The GUI now starts in that preset (#16).
+- A missing SciPy no longer hides the reconstruction metrics (#16).
 
 ## [1.0.0] - 2026-09-04
 

@@ -121,7 +121,7 @@ def preset_names() -> List[str]:
     """Return list of available preset names in order.
     
     Returns:
-        Sorted list of preset identifiers.
+        Preset identifiers in definition order (the first one is the GUI default).
     """
     return list(PRESETS.keys())
 
