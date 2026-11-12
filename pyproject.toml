@@ -41,9 +41,10 @@ dependencies = [
 # Desktop audio playback (needs the PortAudio system library).
 audio = ["sounddevice>=0.4.0"]
 # Interactive widgets in Jupyter / Google Colab.
-notebook = ["ipympl>=0.9", "ipywidgets>=8"]
+notebook = ["ipympl>=0.9", "ipywidgets>=7.6"]
 dev = [
     "build>=1.0",
+    "ipython>=8",
     "mypy>=1.8",
     "pytest>=7.0",
     "pytest-cov>=4.0",

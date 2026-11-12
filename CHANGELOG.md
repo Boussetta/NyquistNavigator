@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `build_sampling_grid()` builds a dense time grid on which every sample instant is an exact grid point.
 - `quantize_signal(..., full_scale=...)` and `compute_spectrum(..., window_type=...)` parameters.
 - End-to-end pipeline accuracy tests.
+- `AliasingToolbox(figsize=..., output=...)`: in notebooks, audio players and export download links appear in an output panel below the figure (#19).
+- `compute_observation_window()` chooses a display window that shows slow modulation, the predicted alias, at least 24 samples, and, when possible, a whole number of periods (#19).
+- Colab notebook rewritten: one-step install, a "reading the screen" guide, seven guided experiments, a scripting example, and troubleshooting. The README has an Open in Colab badge (#19).
 
 ### Changed
 
@@ -41,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Only controls a model ignores are dimmed. AM/FM keep message frequency and modulation depth/index; Chirp keeps its end frequency and labels it (#16).
 - "Reset All" restores the first preset and its selector in a single redraw. The GUI now starts in that preset (#16).
 - A missing SciPy no longer hides the reconstruction metrics (#16).
+- GUI layout no longer overlaps: the summary line, sliders, preset/learn titles, and slider values had collided with plot titles and tick labels. The default figure is 11 x 8.2 in, so it fits a notebook. Axes have labels, and legends list only visible curves above the data (#19).
+- The AM Sidebands preset now shows the envelope and resolves the sidebands (carrier 1.0, sidebands m/2). The Aliasing preset shows the 5 Hz alias traced by the samples. Near Nyquist reconstructs at ~97 dB (#19).
+- With an Ideal anti-alias filter, the status reports filtered content instead of "ALIASING DETECTED", and the learning hint explains the trade-off (#19).
+- Chirp supports downward sweeps (end frequency below start) instead of silently clamping them (#19).
 
 ## [1.0.0] - 2026-09-04
 

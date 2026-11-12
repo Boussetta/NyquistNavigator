@@ -8,6 +8,9 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10+-green.svg)](https://www.python.org/)
 [![Tests](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml)
 [![Quality](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Boussetta/NyquistNavigator/blob/main/AliasingAtlas.ipynb)
+
+**Try it in your browser, with no install:** [open the notebook in Google Colab](https://colab.research.google.com/github/Boussetta/NyquistNavigator/blob/main/AliasingAtlas.ipynb), run the Setup and Launch cells, and follow the seven guided experiments.
 
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation)
 
@@ -159,7 +162,18 @@ For local Jupyter, install the notebook dependencies and launch Jupyter:
 .venv/bin/python -m jupyter notebook AliasingAtlas.ipynb
 ```
 
-For Google Colab, open `AliasingAtlas.ipynb` and run the setup cell first. The setup cell clones the repository and adds `src/` to the import path. Colab uses browser audio because desktop PortAudio is not available there.
+For Google Colab, use the **Open in Colab** badge above. The Setup cell installs the package from GitHub (pin `REF` to a release tag for a reproducible classroom setup) and enables the interactive `ipympl` backend. The Launch cell shows the figure with an output panel underneath, where **Play Audio** shows a browser audio player and **Export CFG / Export WAV** show download links. The notebook then walks through seven guided experiments (aliasing, the Nyquist limit, anti-alias filters, bit depth, AM sidebands, leakage/windows, audio).
+
+In your own notebooks, pass an `ipywidgets.Output` to get the same behaviour:
+
+```python
+import ipywidgets as widgets
+from aliasing_atlas import AliasingToolbox
+
+panel = widgets.Output()
+toolbox = AliasingToolbox(output=panel)   # figsize=(11, 8.2) by default
+widgets.VBox([toolbox.fig.canvas, panel])
+```
 
 ### Programmatic Usage
 
@@ -415,7 +429,7 @@ Ensure package is installed:
 python3 -m pip install -e .
 ```
 
-If you are using Google Colab, run the setup cell in `AliasingAtlas.ipynb`; it clones the repository and adds `src/` to the import path.
+If you are using Google Colab, run the Setup cell in `AliasingAtlas.ipynb` first; it installs the package from GitHub. If the sliders don't respond, use *Runtime → Restart session* and then *Run all*.
 
 ### Audio not playing in Colab
 

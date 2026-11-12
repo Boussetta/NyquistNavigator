@@ -35,6 +35,7 @@ from typing import Any
 from .dsp import (
     build_sampling_grid,
     compute_duration,
+    compute_observation_window,
     compute_continuous_points,
     apply_anti_alias_filter,
     sample_signal,
@@ -75,6 +76,7 @@ __all__ = [
     "write_wav_mono16",
     "build_sampling_grid",
     "compute_duration",
+    "compute_observation_window",
     "compute_continuous_points",
     "apply_anti_alias_filter",
     "sample_signal",

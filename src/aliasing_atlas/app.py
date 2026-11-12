@@ -1,6 +1,8 @@
 """AliasingAtlas: a pedagogical tool for visualizing sampling and aliasing."""
 
-from typing import Optional
+import base64
+from pathlib import Path
+from typing import Any, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,7 +12,7 @@ from .dsp import (
     apply_anti_alias_filter,
     build_sampling_grid,
     compute_continuous_points,
-    compute_duration,
+    compute_observation_window,
     compute_spectrum,
     folded_alias_frequency,
     is_aliased,
@@ -31,9 +33,9 @@ except ImportError:
 
 # Optional import for notebook audio playback.
 try:
-    from IPython.display import Audio, display
+    from IPython.display import HTML, Audio, clear_output, display
 except ImportError:
-    Audio, display = None, None
+    HTML, Audio, clear_output, display = None, None, None, None
 
 # Controls each signal model actually reads (others are dimmed in the UI).
 MODEL_USES_N_HARM = ("Square", "Sawtooth", "Triangle")
@@ -55,9 +57,18 @@ except (ImportError, OSError):
 
 
 class AliasingToolbox:
-    """Interactive UI for signal sampling, aliasing, and reconstruction."""
+    """Interactive UI for signal sampling, aliasing, and reconstruction.
 
-    def __init__(self) -> None:
+    Args:
+        figsize: Figure size in inches. The default (11 x 8.2) fits a Jupyter or
+            Colab output area (~1100 px wide at 100 dpi).
+        output: Optional display target for notebooks, typically an
+            ``ipywidgets.Output``. Widget callbacks in ipympl cannot print into the
+            cell, so audio players and export download links are shown here.
+    """
+
+    def __init__(self, figsize: Tuple[float, float] = (11.0, 8.2), output: Any = None) -> None:
+        self.output = output
         self.f_sig_max = 50.0
         self.f_samp_max = 1500.0
         self.num_continuous_points = 1000
@@ -65,18 +76,21 @@ class AliasingToolbox:
         # The GUI starts in the first preset so the preset selector matches the state.
         defaults = get_preset(preset_names()[0])
 
-        self.fig = plt.figure(figsize=(14, 8.8))
+        self.fig = plt.figure(figsize=figsize)
         self.fig.patch.set_facecolor("#eef3f8")
-        plt.subplots_adjust(bottom=0.25, top=0.94, left=0.06, right=0.98, hspace=0.33, wspace=0.25)
+        self.fig.subplots_adjust(bottom=0.37, top=0.90, left=0.07, right=0.98, hspace=0.48, wspace=0.22)
+        canvas = self.fig.canvas
+        if hasattr(canvas, "header_visible"):  # ipympl: hide the redundant "Figure N" header
+            canvas.header_visible = False
 
         self.ax_time = self.fig.add_subplot(2, 2, 1)
         self.ax_time.set_facecolor("#ffffff")
-        self.ax_time.set_title("AliasingAtlas: Time Domain", fontweight="bold")
+        self.ax_time.set_title("Time Domain", fontweight="bold", fontsize=10)
         self.ax_time.grid(True, linestyle=":", alpha=0.6)
 
         self.ax_freq = self.fig.add_subplot(2, 2, 2)
         self.ax_freq.set_facecolor("#ffffff")
-        self.ax_freq.set_title("Frequency Domain: Magnitude Spectrum", fontweight="bold")
+        self.ax_freq.set_title("Magnitude Spectrum (sampled)", fontweight="bold", fontsize=10)
         self.ax_freq.grid(True, linestyle=":", alpha=0.6)
         self.ax_freq.set_ylabel("Magnitude")
         self.ax_freq.set_xlim(0, self.f_samp_max / 2 + 100)
@@ -84,14 +98,14 @@ class AliasingToolbox:
 
         self.ax_phase = self.fig.add_subplot(2, 2, 3)
         self.ax_phase.set_facecolor("#ffffff")
-        self.ax_phase.set_title("Frequency Domain: Phase Spectrum", fontweight="bold")
+        self.ax_phase.set_title("Phase Spectrum (sampled)", fontweight="bold", fontsize=10)
         self.ax_phase.grid(True, linestyle=":", alpha=0.6)
         self.ax_phase.set_ylabel("Phase (rad)")
         self.ax_phase.set_ylim(-np.pi - 0.5, np.pi + 0.5)
 
         self.ax_quant = self.fig.add_subplot(2, 2, 4)
         self.ax_quant.set_facecolor("#ffffff")
-        self.ax_quant.set_title("Quantization Error (e = y_quant - y_ideal)", fontweight="bold")
+        self.ax_quant.set_title("Quantization Error (y_quant - y_ideal)", fontweight="bold", fontsize=10)
         self.ax_quant.grid(True, linestyle=":", alpha=0.6)
         self.ax_quant.set_ylabel("Error Amp")
 
@@ -100,31 +114,38 @@ class AliasingToolbox:
         self.line_foh, = self.ax_time.plot([], [], "c-", alpha=0.8, linewidth=1.5, label="FOH Reconstruction")
         self.line_step, = self.ax_time.step([], [], where="post", color="crimson", alpha=0.6, label="Zero-Order Hold")
         self.line_fft, = self.ax_time.plot([], [], "g-", linewidth=2, label="FFT Reconstruction")
-        self.dots_samp = self.ax_time.scatter([], [], color="darkred", s=20, zorder=3)
+        self.dots_samp = self.ax_time.scatter([], [], color="darkred", s=20, zorder=3, label="Samples")
 
-        self.line_spec, = self.ax_freq.plot([], [], "ro-", markersize=4, label="Sampled Peak")
+        self.line_spec, = self.ax_freq.plot([], [], "ro-", markersize=4, label="Sampled spectrum")
         self.line_phase, = self.ax_phase.plot([], [], "go-", markersize=4, label="Phase")
         self.nyquist_line = self.ax_freq.axvline(0, color="orange", linestyle="--", label="Nyquist Limit")
-        self.true_freq_line = self.ax_freq.axvline(0, color="blue", alpha=0.4, linestyle="--", label="Intended Freq")
+        self.true_freq_line = self.ax_freq.axvline(0, color="blue", alpha=0.4, linestyle="--", label="Highest component")
         self.aaf_filter_response, = self.ax_freq.plot([], [], "k--", alpha=0.5, label="AAF Response")
         self.alias_indicator = self.ax_freq.axvline(0, color="magenta", alpha=0.6, linestyle=":", label="Predicted Alias")
         self.line_quant, = self.ax_quant.plot([], [], "m.-", markersize=3, alpha=0.7, label="Error")
 
-        self.ax_time.legend(loc="upper right", fontsize="small")
-        self.ax_freq.legend(loc="upper right", fontsize="small")
+        for ax, xlabel in (
+            (self.ax_time, "Time (s)"),
+            (self.ax_freq, "Frequency (Hz)"),
+            (self.ax_phase, "Frequency (Hz)"),
+            (self.ax_quant, "Time (s)"),
+        ):
+            ax.set_xlabel(xlabel, fontsize=8, labelpad=1)
+            ax.tick_params(labelsize=8)
+            ax.yaxis.label.set_fontsize(8)
 
         slider_color = "#d9e7f3"
         panel_color = "#f5f8fc"
 
-        self.cax_tabs = plt.axes([0.02, 0.02, 0.10, 0.18], facecolor=panel_color)
+        self.cax_tabs = self.fig.add_axes([0.01, 0.02, 0.09, 0.17], facecolor=panel_color)
         self.w_tabs = RadioButtons(self.cax_tabs, ("Signal", "Sampling", "Audio"))
         self.cax_tabs.set_title("Sections", fontsize=9, fontweight="bold")
 
-        self.cax_f_sig = plt.axes([0.15, 0.20, 0.26, 0.016], facecolor=slider_color)
-        self.cax_f_samp = plt.axes([0.44, 0.20, 0.26, 0.016], facecolor=slider_color)
-        self.cax_preset = plt.axes([0.73, 0.14, 0.11, 0.09], facecolor=panel_color)
-        self.cax_learning = plt.axes([0.85, 0.14, 0.08, 0.09], facecolor=panel_color)
-        self.cax_reset = plt.axes([0.94, 0.19, 0.05, 0.032], facecolor=slider_color)
+        self.cax_f_sig = self.fig.add_axes([0.15, 0.285, 0.24, 0.018], facecolor=slider_color)
+        self.cax_f_samp = self.fig.add_axes([0.55, 0.285, 0.24, 0.018], facecolor=slider_color)
+        self.cax_preset = self.fig.add_axes([0.78, 0.02, 0.11, 0.17], facecolor=panel_color)
+        self.cax_learning = self.fig.add_axes([0.90, 0.09, 0.09, 0.10], facecolor=panel_color)
+        self.cax_reset = self.fig.add_axes([0.89, 0.272, 0.09, 0.036], facecolor=slider_color)
 
         self.s_f_sig = Slider(self.cax_f_sig, DEFAULT_LABELS[0], 1.0, self.f_sig_max, valinit=defaults.f_sig)
         self.s_f_samp = Slider(self.cax_f_samp, "Sampling (Hz)", 5.0, self.f_samp_max, valinit=defaults.f_samp)
@@ -134,16 +155,16 @@ class AliasingToolbox:
         self.w_learning = RadioButtons(self.cax_learning, ("Off", "On"))
         self.cax_learning.set_title("Learn", fontsize=9)
 
-        self.cax_sig_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_sig_box = self.fig.add_axes([0.115, 0.02, 0.65, 0.17], facecolor=panel_color)
         self.cax_sig_box.set_title("Signal Controls", fontsize=9, fontweight="bold")
         self.cax_sig_box.set_xticks([])
         self.cax_sig_box.set_yticks([])
 
-        self.cax_f_harm = plt.axes([0.20, 0.085, 0.20, 0.014], facecolor=slider_color)
-        self.cax_a_harm = plt.axes([0.20, 0.05, 0.20, 0.014], facecolor=slider_color)
-        self.cax_s_phase = plt.axes([0.46, 0.085, 0.20, 0.014], facecolor=slider_color)
-        self.cax_n_harm = plt.axes([0.46, 0.05, 0.20, 0.014], facecolor=slider_color)
-        self.cax_wave = plt.axes([0.72, 0.03, 0.12, 0.08], facecolor=panel_color)
+        self.cax_f_harm = self.fig.add_axes([0.215, 0.13, 0.12, 0.016], facecolor=slider_color)
+        self.cax_a_harm = self.fig.add_axes([0.215, 0.06, 0.12, 0.016], facecolor=slider_color)
+        self.cax_s_phase = self.fig.add_axes([0.47, 0.13, 0.10, 0.016], facecolor=slider_color)
+        self.cax_n_harm = self.fig.add_axes([0.47, 0.06, 0.10, 0.016], facecolor=slider_color)
+        self.cax_wave = self.fig.add_axes([0.655, 0.025, 0.105, 0.135], facecolor=panel_color)
 
         self.s_f_harm = Slider(self.cax_f_harm, DEFAULT_LABELS[1], 1.0, self.f_sig_max * 2, valinit=defaults.f_harm)
         self.s_f_harm_amp = Slider(self.cax_a_harm, DEFAULT_LABELS[2], 0.0, 1.0, valinit=defaults.a_harm)
@@ -162,16 +183,16 @@ class AliasingToolbox:
             self.cax_wave,
         ]
 
-        self.cax_quant_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_quant_box = self.fig.add_axes([0.115, 0.02, 0.65, 0.17], facecolor=panel_color)
         self.cax_quant_box.set_title("Sampling Controls", fontsize=9, fontweight="bold")
         self.cax_quant_box.set_xticks([])
         self.cax_quant_box.set_yticks([])
 
-        self.cax_bits = plt.axes([0.20, 0.067, 0.22, 0.014], facecolor=slider_color)
-        self.cax_window = plt.axes([0.46, 0.03, 0.10, 0.08], facecolor=panel_color)
-        self.cax_aaf = plt.axes([0.58, 0.03, 0.10, 0.08], facecolor=panel_color)
-        self.cax_recon = plt.axes([0.70, 0.03, 0.10, 0.08], facecolor=panel_color)
-        self.cax_db_scale = plt.axes([0.82, 0.03, 0.12, 0.08], facecolor=panel_color)
+        self.cax_bits = self.fig.add_axes([0.215, 0.10, 0.12, 0.016], facecolor=slider_color)
+        self.cax_window = self.fig.add_axes([0.39, 0.025, 0.085, 0.13], facecolor=panel_color)
+        self.cax_aaf = self.fig.add_axes([0.48, 0.025, 0.085, 0.13], facecolor=panel_color)
+        self.cax_recon = self.fig.add_axes([0.57, 0.025, 0.085, 0.13], facecolor=panel_color)
+        self.cax_db_scale = self.fig.add_axes([0.66, 0.025, 0.10, 0.13], facecolor=panel_color)
 
         self.s_bits = Slider(self.cax_bits, "Bit Depth", 2, 16, valinit=defaults.bits, valstep=1)
         self.w_radio = RadioButtons(self.cax_window, ("None", "Hamming", "Hann"))
@@ -192,17 +213,17 @@ class AliasingToolbox:
             self.cax_db_scale,
         ]
 
-        self.cax_audio_box = plt.axes([0.14, 0.02, 0.85, 0.10], facecolor=panel_color)
+        self.cax_audio_box = self.fig.add_axes([0.115, 0.02, 0.65, 0.17], facecolor=panel_color)
         self.cax_audio_box.set_title("Audio & Export", fontsize=9, fontweight="bold")
         self.cax_audio_box.set_xticks([])
         self.cax_audio_box.set_yticks([])
 
-        self.cax_vol = plt.axes([0.20, 0.085, 0.20, 0.014], facecolor=slider_color)
-        self.cax_dur = plt.axes([0.20, 0.05, 0.20, 0.014], facecolor=slider_color)
-        self.cax_audio_src = plt.axes([0.46, 0.03, 0.12, 0.08], facecolor=panel_color)
-        self.cax_play_audio = plt.axes([0.62, 0.05, 0.10, 0.04], facecolor=slider_color)
-        self.cax_export_cfg = plt.axes([0.75, 0.05, 0.10, 0.04], facecolor=slider_color)
-        self.cax_export_wav = plt.axes([0.87, 0.05, 0.10, 0.04], facecolor=slider_color)
+        self.cax_vol = self.fig.add_axes([0.215, 0.13, 0.12, 0.016], facecolor=slider_color)
+        self.cax_dur = self.fig.add_axes([0.215, 0.06, 0.12, 0.016], facecolor=slider_color)
+        self.cax_audio_src = self.fig.add_axes([0.40, 0.025, 0.08, 0.13], facecolor=panel_color)
+        self.cax_play_audio = self.fig.add_axes([0.50, 0.08, 0.08, 0.05], facecolor=slider_color)
+        self.cax_export_cfg = self.fig.add_axes([0.59, 0.08, 0.08, 0.05], facecolor=slider_color)
+        self.cax_export_wav = self.fig.add_axes([0.68, 0.08, 0.075, 0.05], facecolor=slider_color)
 
         self.s_vol = Slider(self.cax_vol, "Audio Vol", 0.0, 1.0, valinit=0.5)
         self.s_dur = Slider(self.cax_dur, "Audio Dur (s)", 0.5, 3.0, valinit=1.5)
@@ -255,7 +276,7 @@ class AliasingToolbox:
 
         self.status_text = self.fig.text(
             0.5,
-            0.01,
+            0.228,
             "",
             ha="center",
             fontsize=9,
@@ -264,7 +285,7 @@ class AliasingToolbox:
         )
         self.learning_text = self.fig.text(
             0.5,
-            0.98,
+            0.952,
             "",
             ha="center",
             va="top",
@@ -272,10 +293,10 @@ class AliasingToolbox:
             color="#315b7d",
         )
         self.summary_text = self.fig.text(
-            0.06,
-            0.955,
+            0.5,
+            0.988,
             "",
-            ha="left",
+            ha="center",
             va="top",
             fontsize=9,
             color="#243447",
@@ -482,7 +503,8 @@ class AliasingToolbox:
         tag = timestamp_tag()
         path = out_dir / f"aliasing_config_{tag}.json"
         save_config_json(path, self._current_config_payload())
-        self.status_text.set_text(f"Exported config to {path}")
+        shown = self._offer_download(path, "application/json")
+        self.status_text.set_text(f"Exported config to {path}" + (" (download link below)" if shown else ""))
         self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
         self.fig.canvas.draw_idle()
 
@@ -513,7 +535,8 @@ class AliasingToolbox:
         path = out_dir / f"aliasing_audio_{tag}.wav"
         audio_data = self._generate_audio_data(playback_fs)
         write_wav_mono16(path, audio_data, playback_fs)
-        self.status_text.set_text(f"Exported WAV to {path}")
+        shown = self._offer_download(path, "audio/wav")
+        self.status_text.set_text(f"Exported WAV to {path}" + (" (download link below)" if shown else ""))
         self.status_text.get_bbox_patch().set_facecolor("#c8e6c9")
         self.fig.canvas.draw_idle()
 
@@ -553,7 +576,10 @@ class AliasingToolbox:
         n_harm: int,
     ):
         max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm, n_harm)
-        requested_duration = compute_duration(f_sig, cycles=3.0)
+        alias_freq = folded_alias_frequency(max_freq, f_samp) if is_aliased(max_freq, f_samp) else None
+        requested_duration = compute_observation_window(
+            wave_type, f_sig, f_harm, a_harm, f_samp=f_samp, alias_freq=alias_freq
+        )
         # Dense enough for a smooth curve and >= 20 points per cycle of the highest component.
         min_points = max(
             compute_continuous_points(max_freq),
@@ -608,6 +634,7 @@ class AliasingToolbox:
         }
 
     def _compute_display_magnitudes(self, mags: np.ndarray, db_on: bool, a_harm: float) -> np.ndarray:
+        # a_harm is kept for API compatibility; the linear scale now follows the data.
         if db_on:
             display_mags = 20 * np.log10(np.maximum(mags, 1e-5))
             self.ax_freq.set_ylabel("Magnitude (dB)")
@@ -615,7 +642,8 @@ class AliasingToolbox:
             return display_mags
 
         self.ax_freq.set_ylabel("Magnitude")
-        self.ax_freq.set_ylim(0, max(1.5, (1 + a_harm) * 1.2))
+        peak = float(np.max(mags)) if len(mags) else 1.0
+        self.ax_freq.set_ylim(0, max(1.0, peak) * 1.6)  # headroom for the legend
         return mags
 
     def _update_time_domain_plots(
@@ -645,7 +673,8 @@ class AliasingToolbox:
         self.line_foh.set_visible(recon_type == "FOH")
 
         self.ax_time.set_xlim(0, duration)
-        self.ax_time.set_ylim(-1.4 - a_harm, 1.4 + a_harm)
+        peak = max(1.0, float(np.max(np.abs(y_cont))))
+        self.ax_time.set_ylim(-1.15 * peak, 1.9 * peak)  # headroom for the legend
 
     def _update_frequency_domain_plots(
         self,
@@ -684,7 +713,14 @@ class AliasingToolbox:
         if aaf_type == "Butter" and sp_signal is None:
             msg = "Butterworth unavailable without SciPy (pip install scipy); showing unfiltered | " + msg
 
-        if aliased:
+        filter_active = aaf_type == "Ideal" or (aaf_type == "Butter" and sp_signal is not None)
+        if aliased and aaf_type == "Ideal":
+            msg += " | AAF removed content above fs/2: no aliasing, but that detail is lost"
+            self.status_text.get_bbox_patch().set_facecolor("#fff3c4")
+        elif aliased and filter_active:
+            msg += " | AAF attenuates content above fs/2: residual aliasing possible"
+            self.status_text.get_bbox_patch().set_facecolor("#ffe0a3")
+        elif aliased:
             msg += " | WARNING: ALIASING DETECTED"
             self.status_text.get_bbox_patch().set_facecolor("#ffcc80")
         else:
@@ -746,6 +782,36 @@ class AliasingToolbox:
 
         self.aaf_filter_response.set_visible(False)
 
+    def _refresh_legends(self) -> None:
+        """Show legend entries only for curves that are currently visible."""
+        for ax, extra, ncol in ((self.ax_time, [self.dots_samp], 3), (self.ax_freq, [], 2)):
+            handles = [
+                h for h in [*ax.get_lines(), *extra]
+                if h.get_visible() and not str(h.get_label()).startswith("_")
+            ]
+            ax.legend(handles=handles, loc="upper center", ncol=ncol, fontsize=7, framealpha=0.85)
+
+    def _show_in_output(self, obj: Any) -> bool:
+        """Display ``obj`` in the notebook output widget, if one was provided."""
+        if self.output is None or display is None:
+            return False
+        with self.output:
+            if clear_output is not None:
+                clear_output(wait=True)
+            display(obj)
+        return True
+
+    def _offer_download(self, path: Path, mime: str) -> bool:
+        """Show a browser download link for an exported file (useful in Colab)."""
+        if HTML is None:
+            return False
+        payload = base64.b64encode(path.read_bytes()).decode("ascii")
+        link = HTML(
+            f'<a download="{path.name}" href="data:{mime};base64,{payload}" '
+            f'style="font-family:sans-serif">&#11015; Download {path.name}</a>'
+        )
+        return self._show_in_output(link)
+
     def _play_audio_callback(self, event) -> None:
         playback_fs = 44100
         (
@@ -769,6 +835,13 @@ class AliasingToolbox:
             self.fig.canvas.draw_idle()
             return
         audio_data = self._generate_audio_data(playback_fs)
+
+        # In a notebook, play in the browser: the kernel may run on a remote machine (Colab).
+        if self.output is not None and Audio is not None:
+            self._show_in_output(Audio(data=audio_data.astype(np.float32), rate=playback_fs, autoplay=True))
+            self.status_text.set_text(f"Audio player for {wave_type} shown below the figure.")
+            self.fig.canvas.draw_idle()
+            return
 
         if sd is not None:
             try:
@@ -873,6 +946,7 @@ class AliasingToolbox:
         self._update_status(y_cont, y_recon, max_freq, aaf_type, aliased)
         self._update_summary(wave_type, max_freq, f_samp, bits, aaf_type, recon_type)
         self._update_learning_hint(learning_on, wave_type, aliased, max_freq, f_samp, recon_type, aaf_type, bits)
+        self._refresh_legends()
         self.fig.canvas.draw_idle()
 
     def show(self) -> None:

@@ -261,7 +261,7 @@ class ChirpWave(Signal):
         
         # Chirp parameters
         f0 = max(float(self.f_sig), 0.0)  # Start frequency
-        f1 = max(float(self.f_harm), f0)  # End frequency
+        f1 = max(float(self.f_harm), 0.0)  # End frequency (may be below f0: down-chirp)
         k = (f1 - f0) / duration  # Chirp rate
         
         # Instantaneous phase: φ(t) = 2π(f₀τ + ½kτ²) + phase_offset
