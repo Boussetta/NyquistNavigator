@@ -5,7 +5,7 @@
 **Interactive Educational Tool for Visualizing Digital Signal Processing Concepts**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.10+-green.svg)](https://www.python.org/)
 [![Tests](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/tests.yml)
 [![Quality](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml/badge.svg)](https://github.com/Boussetta/NyquistNavigator/actions/workflows/quality.yml)
 
@@ -86,7 +86,7 @@ Perfect for students, educators, and signal processing practitioners who want to
 
 ### Prerequisites
 
-- Python 3.8 or later
+- Python 3.10 or later
 - pip and the Python `venv` module
 
 On Debian or Ubuntu, install the `venv` module if creating an environment fails:
@@ -107,8 +107,11 @@ git clone https://github.com/Boussetta/NyquistNavigator.git
 cd NyquistNavigator
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e ".[audio]"
 ```
+
+The `audio` extra installs `sounddevice` for desktop playback; on Linux it also needs the PortAudio
+library (`sudo apt install libportaudio2`). Without it, everything except the **Play Audio** button works.
 
 Then launch:
 ```bash
@@ -152,7 +155,7 @@ Or run without activating it:
 For local Jupyter, install the notebook dependencies and launch Jupyter:
 
 ```bash
-.venv/bin/python -m pip install jupyter ipympl
+.venv/bin/python -m pip install jupyter -e ".[notebook]"
 .venv/bin/python -m jupyter notebook AliasingAtlas.ipynb
 ```
 
@@ -417,7 +420,7 @@ If you are using Google Colab, run the setup cell in `AliasingAtlas.ipynb`; it c
 ### Audio not playing in Colab
 
 The tool automatically detects the environment:
-- **Desktop:** Uses sounddevice for audio output
+- **Desktop:** Uses sounddevice for audio output (install with `pip install -e ".[audio]"`)
 - **Jupyter/Colab:** Uses IPython.display.Audio with HTML5 playback
 
 If audio still doesn't play, check browser speaker settings and console for warnings.
