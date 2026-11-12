@@ -56,6 +56,65 @@ def compute_duration(f_sig: float, cycles: float = 3.0) -> float:
     return cycles / f_sig if f_sig > 0 else 1.0
 
 
+def compute_observation_window(
+    wave_type: str,
+    f_sig: float,
+    f_harm: float,
+    a_harm: float,
+    f_samp: Optional[float] = None,
+    alias_freq: Optional[float] = None,
+    cycles: float = 3.0,
+    min_samples: int = 24,
+    max_duration: float = 2.0,
+) -> float:
+    """Pick a display window long enough to show what is happening.
+
+    The window shows ``cycles`` periods of the fundamental/carrier, stretched so that:
+
+        - a slower active component (AM/FM message, or an extra tone below f_sig)
+          also gets ``cycles`` periods: envelopes are visible and sidebands resolve;
+        - a predicted alias (``alias_freq``) gets ``cycles`` periods, so the slower
+          "fake" sine traced by the samples is recognisable;
+        - at least ``min_samples`` samples are taken when ``f_samp`` is given.
+
+    Chirp uses f_harm as its end frequency, so only f_sig counts for it. Stretching
+    is capped at ``max_duration`` seconds; the window is never shorter than
+    ``cycles`` periods of f_sig.
+
+    Examples:
+        >>> compute_observation_window("Sine", 10.0, 20.0, 0.0)
+        0.3
+        >>> round(compute_observation_window("AM", 25.0, 3.0, 0.7), 3)
+        1.0
+        >>> round(compute_observation_window("Sine", 10.0, 20.0, 0.0, f_samp=15.0, alias_freq=5.0), 3)
+        1.6
+        >>> round(compute_observation_window("Sine", 10.0, 20.0, 0.0, f_samp=22.0), 3)  # 15 periods, 33 samples
+        1.5
+    """
+    base = compute_duration(f_sig, cycles=cycles)
+    wanted = base
+    if wave_type != "Chirp" and a_harm > 0 and f_harm > 0:
+        wanted = max(wanted, compute_duration(f_harm, cycles=cycles))
+    if alias_freq is not None and alias_freq > 0:
+        wanted = max(wanted, compute_duration(alias_freq, cycles=cycles))
+    if f_samp is not None and f_samp > 0:
+        wanted = max(wanted, min_samples / f_samp)
+    duration = max(base, min(wanted, max_duration))
+
+    # Prefer a slightly longer window holding whole periods of f_sig *and* a whole
+    # number of samples: then the FFT (periodic) reconstruction has no edge leakage.
+    if f_samp is not None and f_samp > 0 and f_sig > 0:
+        k_min = int(np.ceil(duration * f_sig - 1e-9))
+        for k in range(k_min, max(2 * k_min, k_min + 3) + 1):
+            candidate = k / f_sig
+            n = candidate * f_samp
+            if candidate > max(max_duration, base) * 1.5:
+                break
+            if abs(n - round(n)) < 1e-6:
+                return candidate
+    return duration
+
+
 def compute_continuous_points(max_freq: float, minimum: int = 1000, scale: int = 20) -> int:
     """Pick continuous-time resolution based on highest modeled frequency.
     

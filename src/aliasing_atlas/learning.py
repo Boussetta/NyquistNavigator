@@ -35,7 +35,7 @@ def build_learning_hint(
     Implements a priority-based system that selects the most relevant hint
     for the current parameter configuration. Priority order:
     
-        1. Critical: Aliasing is active
+        1. Critical: Content above Nyquist (filtered by the AAF, or aliasing)
         2. High: Quantization is severely limited
         3. Medium: Sampling near Nyquist without filter
         4. Low: Informational (reconstruction methods, modulation effects)
@@ -58,7 +58,14 @@ def build_learning_hint(
     """
     nyquist = 2 * max_freq
 
-    # Priority 1: Aliasing detection
+    # Priority 1a: Out-of-band content handled by an anti-alias filter
+    if aliased and aaf_type in ("Ideal", "Butter"):
+        return (
+            f"Learning: The {aaf_type} anti-alias filter suppresses content above fs/2={f_samp / 2:.1f} Hz before "
+            "sampling, so it cannot fold back. The cost is lost detail: compare with AAF None."
+        )
+
+    # Priority 1b: Aliasing detection
     if aliased:
         return (
             f"Learning: Aliasing is active because fs={f_samp:.1f} Hz is below 2*fmax={nyquist:.1f} Hz. "
