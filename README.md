@@ -98,9 +98,16 @@ On Debian or Ubuntu, install the `venv` module if creating an environment fails:
 sudo apt install python3-venv
 ```
 
-### From Source
+### From PyPI
 
-The package is currently installed directly from the repository. PyPI publication is not yet available.
+```bash
+python3 -m pip install "aliasing-atlas[audio]"
+aliasing-atlas
+```
+
+Drop `[audio]` if you don't need desktop playback. Use `[notebook]` for Jupyter.
+
+### From Source
 
 For Windows PowerShell, replace `.venv/bin/python` with `.venv\Scripts\python` and
 `source .venv/bin/activate` with `.venv\Scripts\Activate.ps1` in the commands below.
@@ -348,7 +355,7 @@ sinewave-sampling/
 
 ## Release Status
 
-The repository includes an automated release workflow, but PyPI publication requires the one-time trusted-publisher setup described in [RELEASING.md](RELEASING.md). Until that setup is complete, install AliasingAtlas from source as described above.
+AliasingAtlas is published on [PyPI](https://pypi.org/project/aliasing-atlas/). Releases are built and published automatically from version tags after tests, lint, and type checks pass; see [RELEASING.md](RELEASING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Examples
 
