@@ -8,7 +8,7 @@ from matplotlib.widgets import Button, RadioButtons, Slider
 
 from .dsp import (
     apply_anti_alias_filter,
-    apply_window,
+    build_sampling_grid,
     compute_continuous_points,
     compute_duration,
     compute_spectrum,
@@ -18,7 +18,6 @@ from .dsp import (
     reconstruct_fft,
     reconstruct_foh,
     reconstruction_metrics,
-    sample_signal,
 )
 from .signals import SignalRegistry
 from .presets import get_preset, preset_names
@@ -435,13 +434,18 @@ class AliasingToolbox:
             n_harm,
         ) = self._get_params()
 
-        num_playback = max(2, int(duration * playback_fs))
-        t_playback = np.linspace(0.0, duration, num_playback, endpoint=False)
+        # Use a whole number of sample periods so FFT reconstruction spans the same time axis.
+        n_samples = max(2, int(round(duration * f_samp)))
+        audio_duration = n_samples / f_samp
+        num_playback = max(2, int(round(audio_duration * playback_fs)))
+        t_playback = np.arange(num_playback) / playback_fs
         y_full = SignalRegistry.create_signal(wave_type, t_playback, f_sig, f_harm, a_harm, phase, n_harm)
 
         y_filtered, _, _, _ = apply_anti_alias_filter(y_full, t_playback, f_samp, aaf_type, scipy_signal=sp_signal)
-        t_samp, y_samp = sample_signal(t_playback, y_filtered, f_samp, duration)
-        y_samp_q = quantize_signal(y_samp, bits)
+        t_samp = np.arange(n_samples) / f_samp
+        y_samp = np.interp(t_samp, t_playback, y_filtered)
+        full_scale = max(1.0, float(np.max(np.abs(y_full))))
+        y_samp_q = quantize_signal(y_samp, bits, full_scale=full_scale)
 
         if self.w_audio_src.value_selected == "Sampled":
             indices = np.floor(t_playback * f_samp).astype(int)
@@ -531,10 +535,15 @@ class AliasingToolbox:
         n_harm: int,
     ):
         max_freq = SignalRegistry.get_max_freq(wave_type, f_sig, f_harm, a_harm, n_harm)
-        self.num_continuous_points = compute_continuous_points(max_freq)
-
-        duration = compute_duration(f_sig, cycles=3.0)
-        t_cont = np.linspace(0.0, duration, self.num_continuous_points)
+        requested_duration = compute_duration(f_sig, cycles=3.0)
+        # Dense enough for a smooth curve and >= 20 points per cycle of the highest component.
+        min_points = max(
+            compute_continuous_points(max_freq),
+            int(np.ceil(20.0 * max_freq * requested_duration)),
+        )
+        t_cont, _, upsample = build_sampling_grid(f_samp, requested_duration, min_points)
+        self.num_continuous_points = len(t_cont)
+        duration = len(t_cont) / (upsample * f_samp)
         y_cont = SignalRegistry.create_signal(wave_type, t_cont, f_sig, f_harm, a_harm, phase, n_harm)
 
         y_filt_cont, b, a, fs_cont = apply_anti_alias_filter(
@@ -545,16 +554,19 @@ class AliasingToolbox:
             scipy_signal=sp_signal,
         )
 
-        sample_source = y_filt_cont if aaf_type != "None" else y_cont
-        t_samp, y_samp_ideal = sample_signal(t_cont, sample_source, f_samp, duration)
-        y_samp = quantize_signal(y_samp_ideal, bits)
+        # Sample instants are exact grid points, so sampling is a slice (no interpolation).
+        t_samp = t_cont[::upsample]
+        y_samp_ideal = y_filt_cont[::upsample]
+        # Auto-range the converter to the signal peak so error comes from quantization, not clipping.
+        full_scale = max(1.0, float(np.max(np.abs(y_cont))))
+        y_samp = quantize_signal(y_samp_ideal, bits, full_scale=full_scale)
         quant_error = y_samp - y_samp_ideal
 
-        y_fft_input = apply_window(y_samp, window_type)
-        y_recon_fft = reconstruct_fft(y_fft_input, self.num_continuous_points)
+        # The analysis window only affects the spectrum display, never the reconstruction.
+        y_recon_fft = reconstruct_fft(y_samp, self.num_continuous_points)
         y_recon_foh = reconstruct_foh(t_cont, t_samp, y_samp)
 
-        freqs, mags, phases = compute_spectrum(y_fft_input, f_samp)
+        freqs, mags, phases = compute_spectrum(y_samp, f_samp, window_type)
         phases[mags < 1e-3] = 0
 
         return {
@@ -566,6 +578,7 @@ class AliasingToolbox:
             "t_samp": t_samp,
             "y_samp": y_samp,
             "quant_error": quant_error,
+            "full_scale": full_scale,
             "y_recon_fft": y_recon_fft,
             "y_recon_foh": y_recon_foh,
             "freqs": freqs,
@@ -637,11 +650,14 @@ class AliasingToolbox:
         self.ax_freq.set_xlim(0, x_max)
         self.ax_phase.set_xlim(0, x_max)
 
-    def _update_quantization_plot(self, t_samp: np.ndarray, quant_error: np.ndarray, duration: float, bits: int) -> None:
+    def _update_quantization_plot(
+        self, t_samp: np.ndarray, quant_error: np.ndarray, duration: float, bits: int, full_scale: float = 1.0
+    ) -> None:
         levels = max(2, 2 ** bits)
+        half_step = full_scale / (levels - 1)
         self.line_quant.set_data(t_samp, quant_error)
         self.ax_quant.set_xlim(0, duration)
-        self.ax_quant.set_ylim(-1.5 / (levels - 1), 1.5 / (levels - 1))
+        self.ax_quant.set_ylim(-1.5 * half_step, 1.5 * half_step)
 
     def _update_status(self, y_cont: np.ndarray, y_recon: np.ndarray, max_freq: float, aaf_type: str, aliased: bool) -> None:
         rmse, snr = reconstruction_metrics(y_cont, y_recon)
@@ -686,12 +702,16 @@ class AliasingToolbox:
         self.learning_text.set_text(hint)
 
     def _update_aaf_response(self, aaf_type: str, b, a, fs_cont: Optional[float], f_samp: float, db_on: bool) -> None:
-        if aaf_type == "Butter" and sp_signal is not None and b is not None and a is not None and fs_cont is not None:
-            f_resp, h_resp = sp_signal.freqz(b, a, worN=512, fs=fs_cont)
+        if aaf_type == "Butter" and sp_signal is not None and b is not None and fs_cont is not None:
+            # Evaluate only over the visible band; the filter runs forward-backward, so |H|^2.
+            x_max = self.ax_freq.get_xlim()[1]
+            f_eval = np.linspace(0.0, min(x_max, fs_cont / 2), 512)
+            f_resp, h_resp = sp_signal.sosfreqz(b, worN=f_eval, fs=fs_cont)
+            power = np.abs(h_resp) ** 2
             if db_on:
-                mag = 20 * np.log10(np.maximum(np.abs(h_resp), 1e-5))
+                mag = 20 * np.log10(np.maximum(power, 1e-5))
             else:
-                mag = np.abs(h_resp)
+                mag = power
             self.aaf_filter_response.set_data(f_resp, mag)
             self.aaf_filter_response.set_visible(True)
             return
@@ -799,6 +819,7 @@ class AliasingToolbox:
         t_samp = signal_data["t_samp"]
         y_samp = signal_data["y_samp"]
         quant_error = signal_data["quant_error"]
+        full_scale = signal_data["full_scale"]
         y_recon_fft = signal_data["y_recon_fft"]
         y_recon_foh = signal_data["y_recon_foh"]
         freqs = signal_data["freqs"]
@@ -830,7 +851,7 @@ class AliasingToolbox:
         self._update_frequency_domain_plots(freqs, phases, display_mags, f_samp, max_freq, aliased, f_folded)
 
         self._update_aaf_response(aaf_type, b, a, fs_cont, f_samp, db_on)
-        self._update_quantization_plot(t_samp, quant_error, duration, bits)
+        self._update_quantization_plot(t_samp, quant_error, duration, bits, full_scale)
         self._update_status(y_cont, y_recon, max_freq, aaf_type, aliased)
         self._update_summary(wave_type, max_freq, f_samp, bits, aaf_type, recon_type)
         self._update_learning_hint(learning_on, wave_type, aliased, max_freq, f_samp, recon_type, aaf_type, bits)
