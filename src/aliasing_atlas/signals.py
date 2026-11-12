@@ -109,11 +109,13 @@ class SineWave(Signal):
 class SquareWave(Signal):
     """Square wave approximated by Fourier series summation.
     
-    Implements: y(t) = (4/π) * Σ (1/k)*sin(2π*k*f_sig*t)
+    Implements: y(t) = (4/π) * Σ (1/k)*sin(2π*k*f_sig*t + phase) + a_harm*sin(2π*f_harm*t)
                  where k = 1, 3, 5, ... (odd harmonics)
     
     Uses n_harm harmonics for fidelity. More harmonics produce sharper edges
-    but extend bandwidth, demonstrating aliasing of higher harmonics.
+    but extend bandwidth, demonstrating aliasing of higher harmonics. The
+    optional extra tone at f_harm is a pure sinusoid, so the model stays
+    strictly band-limited and get_max_freq() is exact.
     """
 
     def calculate(self) -> np.ndarray:
@@ -127,14 +129,14 @@ class SquareWave(Signal):
             k = 2 * i + 1  # Odd harmonics only
             base += (1.0 / k) * np.sin(2 * np.pi * k * self.f_sig * self.t + self.phase)
         base = (4 / np.pi) * base
-        harm = self.a_harm * np.sign(np.sin(2 * np.pi * self.f_harm * self.t))
+        harm = self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t)
         return base + harm
 
 
 class SawtoothWave(Signal):
     """Sawtooth wave approximated by Fourier series summation.
     
-    Implements: y(t) = (2/π) * Σ ((-1)^(k+1)/k)*sin(2π*k*f_sig*t)
+    Implements: y(t) = (2/π) * Σ ((-1)^(k+1)/k)*sin(2π*k*f_sig*t + phase) + a_harm*sin(2π*f_harm*t)
                  where k = 1, 2, 3, ... (all harmonics)
     
     Sawtooth contains all harmonics and has the richest spectrum, making it
@@ -151,15 +153,15 @@ class SawtoothWave(Signal):
         for k in range(1, self.n_harm + 1):
             base += ((-1) ** (k + 1) / k) * np.sin(2 * np.pi * k * self.f_sig * self.t + self.phase)
         base = (2 / np.pi) * base
-        harm = self.a_harm * 2 * (self.f_harm * self.t - np.floor(0.5 + self.f_harm * self.t))
+        harm = self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t)
         return base + harm
 
 
 class TriangleWave(Signal):
     """Triangle wave approximated by Fourier series summation.
     
-    Implements: y(t) = (8/π²) * Σ ((-1)^i/(k²))*sin(2π*k*f_sig*t)
-                 where k = 1, 3, 5, ... (odd harmonics, squared denominator)
+    Implements: y(t) = (8/π²) * Σ ((-1)^i/(k²))*sin(2π*k*f_sig*t + phase) + a_harm*sin(2π*f_harm*t)
+                 where k = 2i+1 = 1, 3, 5, ... (odd harmonics, squared denominator)
     
     Triangle wave has faster harmonic decay than square wave, producing
     smoother transitions and lower high-frequency content.
@@ -177,7 +179,7 @@ class TriangleWave(Signal):
             sign = (-1) ** i
             base += (sign / (k ** 2)) * np.sin(2 * np.pi * k * self.f_sig * self.t + self.phase)
         base = (8 / np.pi ** 2) * base
-        harm = self.a_harm * (2 * np.abs(2 * (self.f_harm * self.t - np.floor(self.f_harm * self.t + 0.5))) - 1)
+        harm = self.a_harm * np.sin(2 * np.pi * self.f_harm * self.t)
         return base + harm
 
 
@@ -332,7 +334,7 @@ class SignalRegistry:
         """Return list of all registered signal type names.
         
         Returns:
-            Sorted list of available signal type identifiers.
+            Signal type identifiers in registration order.
         """
         return list(cls._signals.keys())
 
@@ -343,7 +345,9 @@ class SignalRegistry:
         """Predict the highest frequency component for Nyquist analysis.
         
         Critical for determining required sampling rate and detecting aliasing.
-        Uses mathematical properties of each signal type to estimate bandwidth.
+        Exact for Sine, Square, Sawtooth, Triangle, AM, and Chirp (all band-limited).
+        For FM, the spectrum is theoretically unbounded, so Carson's rule
+        (~98% of the power) is used as the practical bandwidth.
         
         Args:
             wave_type: Signal type name.
@@ -359,7 +363,8 @@ class SignalRegistry:
             - AM: Sidebands at f_sig ± f_harm
             - FM: Carson's rule: f_sig + (a_harm + 1) * f_harm
             - Chirp: Maximum of start and end frequencies
-            - Fourier waves: Fundamental times highest harmonic order
+            - Sine: max(f_sig, f_harm) (n_harm is ignored)
+            - Fourier waves: max(f_sig * highest harmonic order, f_harm)
         """
         if wave_type == "AM":
             return f_sig + f_harm if a_harm > 0 else f_sig
@@ -369,10 +374,14 @@ class SignalRegistry:
         if wave_type == "Chirp":
             return max(f_sig, f_harm)
 
+        extra_tone = f_harm if a_harm > 0 else 0.0
+        if wave_type == "Sine":
+            return max(f_sig, extra_tone)
+
         # For Fourier-based waves, highest freq = f_sig * highest_harmonic_order
         multiplier = (2 * n_harm - 1) if wave_type in ["Square", "Triangle"] else n_harm
         base_max = f_sig * multiplier
-        return max(base_max, f_harm if a_harm > 0 else 0)
+        return max(base_max, extra_tone)
 
 
 # Register all available signal types
