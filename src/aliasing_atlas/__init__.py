@@ -25,7 +25,7 @@ License:
     MIT License - See LICENSE file for details
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "Wissem Boussetta"
 
 from typing import Any
