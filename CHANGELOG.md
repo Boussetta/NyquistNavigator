@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-12
+
+A correctness release. Reconstruction, filtering, quantization, and spectrum readouts now match sampling theory, every preset demonstrates its lesson, and the Colab notebook is rewritten around guided experiments.
+
+### Migration from 1.x
+
+- **Python 3.10 or newer is required.** On Python 3.8/3.9, pip keeps installing 1.0.0.
+- **Desktop audio is optional:** `pip install "aliasing-atlas[audio]"` installs `sounddevice`. In notebooks, `pip install "aliasing-atlas[notebook]"`.
+- `compute_spectrum()` returns **amplitudes** (a unit sine reads 1.0; it read 0.5 before). Pass `window_type=` instead of pre-windowing the samples.
+- `apply_anti_alias_filter(..., "Butter")` returns `(y, sos, None, fs_cont)`: second-order sections replace `b, a`, and filtering is zero-phase.
+- `quantize_signal()` clips to `±full_scale` (default 1.0). Pass `full_scale=` for larger signals.
+- The extra tone on Square/Sawtooth/Triangle is a pure sinusoid, and a Chirp whose end frequency is below its start now sweeps downward.
+
 ### Added
 
-- Automated tag-based release workflow with package version verification.
 - Release workflow runs tests, Ruff, and mypy before publishing, and limits write/OIDC permissions to the publish job (#18).
-- PyPI Trusted Publishing and GitHub Release integration.
-- Maintainer release checklist in `RELEASING.md`.
 - `build_sampling_grid()` builds a dense time grid on which every sample instant is an exact grid point.
 - `quantize_signal(..., full_scale=...)` and `compute_spectrum(..., window_type=...)` parameters.
 - End-to-end pipeline accuracy tests.
@@ -53,6 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Automated tag-based release workflow with package version verification.
+- PyPI Trusted Publishing and GitHub Release integration.
+- Maintainer release checklist in `RELEASING.md`.
 - **Interactive GUI**: Full matplotlib-based 2×2 subplot layout with real-time updates
   - Time-domain view of continuous and sampled signals
   - Frequency-domain FFT spectrum analysis

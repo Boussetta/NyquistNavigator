@@ -186,7 +186,7 @@ sinewave-sampling/
 
 Maintainers follow this process for releases:
 
-1. Update version in `src/aliasing_atlas/__init__.py`
+1. Update the version in `pyproject.toml` and `src/aliasing_atlas/__init__.py` (a test checks they match)
 2. Update `CHANGELOG.md` with release notes
 3. Create annotated git tag: `git tag -a v1.0.0 -m "Release v1.0.0"`
 4. Push tag: `git push origin v1.0.0`
