@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Automated tag-based release workflow with package version verification.
+- Release workflow runs tests, Ruff, and mypy before publishing, and limits write/OIDC permissions to the publish job (#18).
 - PyPI Trusted Publishing and GitHub Release integration.
 - Maintainer release checklist in `RELEASING.md`.
 - `build_sampling_grid()` builds a dense time grid on which every sample instant is an exact grid point.
