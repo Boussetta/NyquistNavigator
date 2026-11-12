@@ -1,5 +1,3 @@
-numpy
-matplotlib
-scipy
-sounddevice
-ipympl
+# Convenience file: installs the package with every optional feature.
+# Prefer `pip install -e ".[audio,notebook]"` (or `".[dev]"` for development).
+-e .[audio,notebook]

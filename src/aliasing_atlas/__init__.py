@@ -27,11 +27,13 @@ License:
 
 __version__ = "1.0.0"
 __author__ = "Wissem Boussetta"
-__email__ = "wissem.boussetta@example.com"
 
-# Public API exports
-from .app import AliasingToolbox
+from typing import Any
+
+# Public API exports. The GUI class is loaded lazily (see __getattr__) so the
+# DSP helpers can be imported without pulling in matplotlib.pyplot.
 from .dsp import (
+    build_sampling_grid,
     compute_duration,
     compute_continuous_points,
     apply_anti_alias_filter,
@@ -50,6 +52,15 @@ from .presets import Preset, get_preset, preset_names
 from .learning import build_learning_hint
 from .exporting import ensure_export_dir, save_config_json, timestamp_tag, write_wav_mono16
 
+
+def __getattr__(name: str) -> Any:
+    if name == "AliasingToolbox":
+        from .app import AliasingToolbox
+
+        return AliasingToolbox
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "AliasingToolbox",
     "SignalRegistry",
@@ -62,6 +73,7 @@ __all__ = [
     "save_config_json",
     "timestamp_tag",
     "write_wav_mono16",
+    "build_sampling_grid",
     "compute_duration",
     "compute_continuous_points",
     "apply_anti_alias_filter",

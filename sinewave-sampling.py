@@ -23,7 +23,7 @@ except ImportError:
 
 if __name__ == "__main__":
     warnings.warn(
-        "sinewave-ampling.py is deprecated. Use 'python -m aliasing_atlas' "
+        "sinewave-sampling.py is deprecated. Use 'python -m aliasing_atlas' "
         "or the 'aliasing-atlas' command after installation.",
         DeprecationWarning
     )

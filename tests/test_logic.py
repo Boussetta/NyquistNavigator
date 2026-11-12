@@ -1,5 +1,13 @@
+"""Basic signal-generation checks (moved out of the installed package)."""
+
+import sys
+from pathlib import Path
+
 import numpy as np
-from aliasing_atlas.signals import SignalRegistry
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from aliasing_atlas.signals import SignalRegistry  # noqa: E402
 
 def test_signal_calculation_sine():
     """Verify that the sine wave generation is mathematically correct."""

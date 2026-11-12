@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `quantize_signal(..., full_scale=...)` and `compute_spectrum(..., window_type=...)` parameters.
 - End-to-end pipeline accuracy tests.
 
+### Changed
+
+- **Python 3.10+ is now required.** Python 3.8 and 3.9 are end-of-life and no longer available on CI runners (#17).
+- `sounddevice` moved to the optional `audio` extra, and `ipympl`/`ipywidgets` to the new `notebook` extra (#17).
+- `import aliasing_atlas` no longer imports `matplotlib.pyplot`; `AliasingToolbox` is loaded on first access (#17).
+
+### Removed
+
+- `aliasing_atlas.test_logic` (a test module shipped inside the package) and the `DOCUMENTATION_IMPROVEMENTS.md` process log (#17).
+- Placeholder `__email__` package metadata (#17).
+
 ### Fixed
 
 - FFT reconstruction no longer uses the windowed samples; the analysis window now only affects the spectrum (#15).

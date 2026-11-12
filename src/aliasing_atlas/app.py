@@ -783,7 +783,7 @@ class AliasingToolbox:
             display(Audio(data=audio_data.astype(np.float32), rate=playback_fs, autoplay=True))
             self.status_text.set_text(f"Audio player for {wave_type} generated below.")
         else:
-            self.status_text.set_text("Audio failed. Install 'sounddevice' for desktop playback.")
+            self.status_text.set_text("No audio backend. Install with: pip install 'aliasing-atlas[audio]'")
             self.status_text.get_bbox_patch().set_facecolor("orange")
 
         self.fig.canvas.draw_idle()
