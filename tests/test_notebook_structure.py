@@ -19,3 +19,15 @@ def test_notebook_setup_mentions_both_supported_environments():
     assert "google.colab" in text
     assert "aliasing_atlas.app" in text
     assert "src" in text
+
+
+def test_notebook_is_shipped_without_outputs_and_guides_users():
+    notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+    text = NOTEBOOK.read_text(encoding="utf-8")
+
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            assert not cell.get("outputs"), "commit the notebook with cleared outputs"
+    assert "colab-badge.svg" in text
+    assert "AliasingToolbox(output=panel)" in text
+    assert "Guided experiments" in text
